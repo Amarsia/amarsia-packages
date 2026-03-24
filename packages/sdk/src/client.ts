@@ -1,0 +1,505 @@
+import {
+  continueConversationStream,
+  createConversation,
+  getConversationMessages,
+  listConversations
+} from "./apis/conversation";
+import { runRequest } from "./apis/run";
+import { streamRequest } from "./apis/stream";
+import { createHttpClient } from "./core/http";
+import { createStore } from "./core/store";
+import { createConfigError, createValidationError, toErrorData, wrapUnknownError } from "./errors";
+import type {
+  AmarsiaSdkErrorData,
+  ConversationData,
+  ConversationState,
+  InitConfig,
+  ListConversationsRequest,
+  LoadMessagesRequest,
+  MessageContent,
+  RunRequest,
+  RunResponse,
+  SendOptions,
+  StatefulResult,
+  StreamRequest,
+  StreamResponse,
+  Subscription,
+  UsageMetadata
+} from "./types";
+
+type StatefulBindings<TData> = {
+  readonly status: StatefulResult<TData>["status"];
+  readonly data: TData | null;
+  readonly stream: string;
+  readonly error: AmarsiaSdkErrorData | null;
+  readonly meta: UsageMetadata | null;
+  readonly raw: unknown;
+  getState: () => Readonly<StatefulResult<TData>>;
+  subscribe: (listener: Subscription<StatefulResult<TData>>) => () => void;
+  reset: () => void;
+};
+
+export type RunController = ((request: RunRequest) => Promise<RunResponse>) & StatefulBindings<RunResponse>;
+
+export type StreamController = ((request: StreamRequest) => Promise<StreamResponse>) &
+  StatefulBindings<StreamResponse> & {
+    abort: () => void;
+  };
+
+export type ConversationController = {
+  readonly id: string | null;
+  readonly status: ConversationState["status"];
+  readonly data: ConversationData | null;
+  readonly stream: string;
+  readonly error: AmarsiaSdkErrorData | null;
+  readonly meta: UsageMetadata | null;
+  readonly raw: unknown;
+  readonly messages: ConversationState["messages"];
+  readonly messagesPageInfo: ConversationState["messagesPageInfo"];
+  readonly conversations: ConversationState["conversations"];
+  readonly conversationsPageInfo: ConversationState["conversationsPageInfo"];
+  getState: () => Readonly<ConversationState>;
+  subscribe: (listener: Subscription<ConversationState>) => () => void;
+  send: (content: MessageContent[], options?: SendOptions) => Promise<ConversationData>;
+  loadMessages: (
+    input?: Omit<LoadMessagesRequest, "conversationId"> & { append?: boolean }
+  ) => Promise<ConversationState["messages"]>;
+  list: (input?: ListConversationsRequest) => Promise<ConversationState["conversations"]>;
+  start: (conversationId?: string) => void;
+  abort: () => void;
+};
+
+export type AmarsiaClient = {
+  run: RunController;
+  stream: StreamController;
+  conversation: ConversationController;
+};
+
+export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
+  const httpClient = createHttpClient(config);
+
+  const runStore = createStore<StatefulResult<RunResponse>>(initialState<RunResponse>());
+  const streamStore = createStore<StatefulResult<StreamResponse>>(initialState<StreamResponse>());
+  const conversationStore = createStore<ConversationState>({
+    ...initialState<ConversationData>(),
+    id: null,
+    messages: [],
+    messagesPageInfo: null,
+    conversations: [],
+    conversationsPageInfo: null
+  });
+
+  let streamAbortController: AbortController | null = null;
+  let conversationAbortController: AbortController | null = null;
+
+  const run = (async (request: RunRequest): Promise<RunResponse> => {
+    validateMessageContent(request.content);
+    runStore.setState((previous) => ({
+      ...previous,
+      status: "loading",
+      error: null,
+      stream: ""
+    }));
+
+    try {
+      const response = await runRequest(httpClient, request);
+      const meta = extractUsageMeta(response.data);
+      runStore.setState((previous) => ({
+        ...previous,
+        status: "success",
+        data: response.data,
+        raw: response.raw,
+        meta
+      }));
+      return response.data;
+    } catch (error) {
+      const wrapped = wrapUnknownError(error);
+      runStore.setState((previous) => ({
+        ...previous,
+        status: "error",
+        error: toErrorData(wrapped)
+      }));
+      throw wrapped;
+    }
+  }) as RunController;
+
+  bindStateful(run, runStore, () => initialState<RunResponse>());
+
+  const stream = (async (request: StreamRequest): Promise<StreamResponse> => {
+    validateMessageContent(request.content);
+    streamAbortController?.abort();
+    streamAbortController = new AbortController();
+    const signal = mergeAbortSignals(request.signal, streamAbortController.signal);
+
+    streamStore.setState((previous) => ({
+      ...previous,
+      status: "streaming",
+      error: null,
+      stream: "",
+      data: null
+    }));
+
+    try {
+      const response = await streamRequest(
+        httpClient,
+        {
+          ...request,
+          signal
+        },
+        {
+          onChunk: (chunk) => {
+            streamStore.setState((previous) => ({
+              ...previous,
+              stream: `${previous.stream}${chunk}`
+            }));
+          }
+        }
+      );
+
+      const meta = extractUsageMeta(response.data);
+      streamStore.setState((previous) => ({
+        ...previous,
+        status: "success",
+        data: response.data,
+        raw: response.raw,
+        meta,
+        stream: ""
+      }));
+
+      return response.data;
+    } catch (error) {
+      const wrapped = wrapUnknownError(error);
+      streamStore.setState((previous) => ({
+        ...previous,
+        status: "error",
+        error: toErrorData(wrapped)
+      }));
+      throw wrapped;
+    } finally {
+      streamAbortController = null;
+    }
+  }) as StreamController;
+
+  bindStateful(stream, streamStore, () => initialState<StreamResponse>());
+  stream.abort = (): void => {
+    streamAbortController?.abort();
+    streamAbortController = null;
+  };
+
+  const conversation: ConversationController = {
+    get id() {
+      return conversationStore.getState().id;
+    },
+    get status() {
+      return conversationStore.getState().status;
+    },
+    get data() {
+      return conversationStore.getState().data;
+    },
+    get stream() {
+      return conversationStore.getState().stream;
+    },
+    get error() {
+      return conversationStore.getState().error;
+    },
+    get meta() {
+      return conversationStore.getState().meta;
+    },
+    get raw() {
+      return conversationStore.getState().raw;
+    },
+    get messages() {
+      return conversationStore.getState().messages;
+    },
+    get messagesPageInfo() {
+      return conversationStore.getState().messagesPageInfo;
+    },
+    get conversations() {
+      return conversationStore.getState().conversations;
+    },
+    get conversationsPageInfo() {
+      return conversationStore.getState().conversationsPageInfo;
+    },
+    getState() {
+      return conversationStore.getState();
+    },
+    subscribe(listener) {
+      return conversationStore.subscribe(listener);
+    },
+    start(conversationId) {
+      conversationAbortController?.abort();
+      conversationAbortController = null;
+      conversationStore.setState((previous) => ({
+        ...initialState<ConversationData>(),
+        id: conversationId ?? null,
+        messages: [],
+        messagesPageInfo: null,
+        conversations: previous.conversations,
+        conversationsPageInfo: previous.conversationsPageInfo
+      }));
+    },
+    abort() {
+      conversationAbortController?.abort();
+      conversationAbortController = null;
+    },
+    async send(content, options) {
+      validateMessageContent(content);
+      warnIgnoredConversationIdInSend(options);
+      conversationAbortController?.abort();
+      conversationAbortController = new AbortController();
+      const signal = mergeAbortSignals(options?.signal, conversationAbortController.signal);
+
+      conversationStore.setState((previous) => ({
+        ...previous,
+        status: previous.id ? "streaming" : "loading",
+        error: null,
+        stream: "",
+        data: null
+      }));
+
+      try {
+        const request = {
+          content,
+          signal
+        } as {
+          content: MessageContent[];
+          deploymentId?: string;
+          signal: AbortSignal;
+          variables?: Record<string, unknown>;
+          meta?: Record<string, string | number | boolean>;
+          historyLimit?: number;
+        };
+
+        if (options?.deploymentId !== undefined) request.deploymentId = options.deploymentId;
+        if (options?.variables !== undefined) request.variables = options.variables;
+        if (options?.meta !== undefined) request.meta = options.meta;
+        if (options?.historyLimit !== undefined) request.historyLimit = options.historyLimit;
+
+        const activeConversationId = conversationStore.getState().id;
+        if (!activeConversationId) {
+          const created = await createConversation(httpClient, request);
+
+          const conversationId = created.data.conversation_id;
+          const meta = extractUsageMeta(created.data);
+          conversationStore.setState((previous) => ({
+            ...previous,
+            status: "success",
+            id: conversationId,
+            data: created.data,
+            raw: created.raw,
+            meta,
+            stream: ""
+          }));
+          return created.data;
+        }
+
+        const continued = await continueConversationStream(
+          httpClient,
+          request,
+          activeConversationId,
+          {
+            onChunk: (chunk) => {
+              conversationStore.setState((previous) => ({
+                ...previous,
+                stream: `${previous.stream}${chunk}`
+              }));
+            }
+          }
+        );
+
+        const meta = extractUsageMeta(continued.data);
+        conversationStore.setState((previous) => ({
+          ...previous,
+          status: "success",
+          id: activeConversationId,
+          data: continued.data,
+          raw: continued.raw,
+          meta,
+          stream: ""
+        }));
+        return continued.data;
+      } catch (error) {
+        const wrapped = wrapUnknownError(error);
+        conversationStore.setState((previous) => ({
+          ...previous,
+          status: "error",
+          error: toErrorData(wrapped)
+        }));
+        throw wrapped;
+      } finally {
+        conversationAbortController = null;
+      }
+    },
+    async loadMessages(input) {
+      const conversationId = conversationStore.getState().id;
+      if (!conversationId) {
+        throw createConfigError("No active conversation id. Send a message first or call conversation.start(conversationId).");
+      }
+
+      try {
+        const request: LoadMessagesRequest = { conversationId };
+        if (input?.page !== undefined) request.page = input.page;
+        if (input?.pageSize !== undefined) request.pageSize = input.pageSize;
+
+        const response = await getConversationMessages(httpClient, request);
+        let nextMessages = response.data.messages;
+        if (input?.append) {
+          const merged = [...conversationStore.getState().messages, ...response.data.messages];
+          const dedupedById = new Map<string, (typeof merged)[number]>();
+          for (const message of merged) {
+            dedupedById.set(message.id, message);
+          }
+          nextMessages = [...dedupedById.values()];
+        }
+
+        conversationStore.setState((previous) => ({
+          ...previous,
+          messages: nextMessages,
+          messagesPageInfo: {
+            page: response.data.page,
+            page_size: response.data.page_size,
+            total: response.data.total,
+            has_more: response.data.has_more
+          }
+        }));
+        return nextMessages;
+      } catch (error) {
+        const wrapped = wrapUnknownError(error);
+        conversationStore.setState((previous) => ({
+          ...previous,
+          status: "error",
+          error: toErrorData(wrapped)
+        }));
+        throw wrapped;
+      }
+    },
+    async list(input) {
+      try {
+        const request: ListConversationsRequest = {};
+        if (input?.page !== undefined) request.page = input.page;
+        if (input?.pageSize !== undefined) request.pageSize = input.pageSize;
+        if (input?.meta !== undefined) request.meta = input.meta;
+
+        const response = await listConversations(httpClient, request);
+        conversationStore.setState((previous) => ({
+          ...previous,
+          conversations: response.data.conversations,
+          conversationsPageInfo: {
+            page: response.data.page,
+            page_size: response.data.page_size,
+            total: response.data.total,
+            has_more: response.data.has_more
+          }
+        }));
+        return response.data.conversations;
+      } catch (error) {
+        const wrapped = wrapUnknownError(error);
+        conversationStore.setState((previous) => ({
+          ...previous,
+          status: "error",
+          error: toErrorData(wrapped)
+        }));
+        throw wrapped;
+      }
+    }
+  };
+
+  return {
+    run,
+    stream,
+    conversation
+  };
+}
+
+function bindStateful<TData>(
+  target: StatefulBindings<TData>,
+  store: ReturnType<typeof createStore<StatefulResult<TData>>>,
+  resetFactory: () => StatefulResult<TData>
+): void {
+  Object.defineProperties(target, {
+    status: { get: () => store.getState().status },
+    data: { get: () => store.getState().data },
+    stream: { get: () => store.getState().stream },
+    error: { get: () => store.getState().error },
+    meta: { get: () => store.getState().meta },
+    raw: { get: () => store.getState().raw }
+  });
+
+  target.getState = (): Readonly<StatefulResult<TData>> => store.getState();
+  target.subscribe = (listener: Subscription<StatefulResult<TData>>): (() => void) => store.subscribe(listener);
+  target.reset = (): void => {
+    store.setState(() => resetFactory());
+  };
+}
+
+function initialState<TData>(): StatefulResult<TData> {
+  return {
+    status: "idle",
+    data: null,
+    stream: "",
+    error: null,
+    meta: null,
+    raw: null
+  };
+}
+
+function extractUsageMeta(data: Record<string, unknown>): UsageMetadata | null {
+  const meta: UsageMetadata = {};
+
+  if (typeof data.model === "string") meta.model = data.model;
+  if (typeof data.input_tokens === "number") meta.input_tokens = data.input_tokens;
+  if (typeof data.output_tokens === "number") meta.output_tokens = data.output_tokens;
+  if (typeof data.request_id === "string") meta.request_id = data.request_id;
+
+  return Object.keys(meta).length > 0 ? meta : null;
+}
+
+function validateMessageContent(content: MessageContent[]): void {
+  if (!Array.isArray(content) || content.length === 0) {
+    throw createValidationError("`content` must be a non-empty array of message content parts.");
+  }
+
+  for (const part of content) {
+    if (part.type === "text") {
+      if (typeof part.text !== "string" || part.text.trim() === "") {
+        throw createValidationError("Text content must include non-empty `text`.");
+      }
+      continue;
+    }
+
+    if (typeof part.mime_type !== "string" || part.mime_type.trim() === "") {
+      throw createValidationError("File content must include non-empty `mime_type`.");
+    }
+    if (typeof part.file_uri !== "string" || part.file_uri.trim() === "") {
+      throw createValidationError("File content must include non-empty `file_uri`.");
+    }
+  }
+}
+
+function mergeAbortSignals(primary: AbortSignal | undefined, secondary: AbortSignal): AbortSignal {
+  if (!primary) return secondary;
+  if (primary.aborted) return primary;
+
+  const merged = new AbortController();
+  const abort = (): void => merged.abort();
+  primary.addEventListener("abort", abort, { once: true });
+  secondary.addEventListener("abort", abort, { once: true });
+  return merged.signal;
+}
+
+let hasWarnedIgnoredConversationIdInSend = false;
+
+function warnIgnoredConversationIdInSend(options: SendOptions | undefined): void {
+  if (!options || hasWarnedIgnoredConversationIdInSend) {
+    return;
+  }
+
+  if ("conversationId" in (options as Record<string, unknown>)) {
+    hasWarnedIgnoredConversationIdInSend = true;
+     
+    console.warn(
+      "[Amarsia SDK] `conversation.send(..., { conversationId })` is ignored. Use `conversation.start(conversationId)` before sending."
+    );
+  }
+}
+
