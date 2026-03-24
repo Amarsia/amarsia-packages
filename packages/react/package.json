@@ -1,6 +1,6 @@
 {
   "name": "@amarsia/react",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "React/Next.js wrapper package for the Amarsia SDK.",
   "license": "MIT",
   "author": "Amarsia",
@@ -39,7 +39,7 @@
     "lint:fix": "eslint src --fix"
   },
   "dependencies": {
-    "@amarsia/sdk": "^0.1.0"
+    "@amarsia/sdk": "^0.1.1"
   },
   "peerDependencies": {
     "react": ">=18",
