@@ -7,11 +7,11 @@
   "author": "Amarsia",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/amarsia/amarsia-sdk.git"
+    "url": "https://github.com/Amarsia/amarsia-packages"
   },
-  "homepage": "https://github.com/amarsia/amarsia-sdk#readme",
+  "homepage": "https://github.com/Amarsia/amarsia-packages#readme",
   "bugs": {
-    "url": "https://github.com/amarsia/amarsia-sdk/issues"
+    "url": "https://github.com/Amarsia/amarsia-packages/issues"
   },
   "workspaces": [
     "packages/*"

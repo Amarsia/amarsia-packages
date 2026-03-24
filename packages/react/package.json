@@ -6,11 +6,11 @@
   "author": "Amarsia",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/amarsia/amarsia-sdk.git"
+    "url": "https://github.com/Amarsia/amarsia-packages"
   },
-  "homepage": "https://github.com/amarsia/amarsia-sdk/tree/main/packages/react#readme",
+  "homepage": "https://github.com/Amarsia/amarsia-packages/tree/main/packages/react#readme",
   "bugs": {
-    "url": "https://github.com/amarsia/amarsia-sdk/issues"
+    "url": "https://github.com/Amarsia/amarsia-packages/issues"
   },
   "type": "module",
   "main": "./dist/index.cjs",
