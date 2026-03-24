@@ -32,13 +32,21 @@ export function createHttpClient(config: InitConfig): HttpClientConfig {
   const baseUrl = normalizeBaseUrl(config.baseUrl ?? "https://api.amarsia.com");
   warnForBrowserApiKey(config.dangerouslyAllowBrowserApiKey);
 
-  return {
+  const client: HttpClientConfig = {
     apiKey,
     fetch: fetchImpl,
-    baseUrl,
-    deploymentId: config.deploymentId,
-    dangerouslyAllowBrowserApiKey: config.dangerouslyAllowBrowserApiKey
+    baseUrl
   };
+
+  if (config.deploymentId !== undefined) {
+    client.deploymentId = config.deploymentId;
+  }
+
+  if (config.dangerouslyAllowBrowserApiKey !== undefined) {
+    client.dangerouslyAllowBrowserApiKey = config.dangerouslyAllowBrowserApiKey;
+  }
+
+  return client;
 }
 
 function warnForBrowserApiKey(dangerouslyAllowBrowserApiKey: boolean | undefined): void {
@@ -154,16 +162,24 @@ async function request(client: HttpClientConfig, options: RequestOptions): Promi
   const query = buildQuery(options.query);
   const url = `${client.baseUrl}${options.path}${query}`;
 
-  return client.fetch(url, {
+  const init: RequestInit = {
     method: options.method ?? "POST",
-    signal: options.signal,
     headers: {
       "Content-Type": "application/json",
       "x-api-key": client.apiKey,
       ...options.headers
-    },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body)
-  });
+    }
+  };
+
+  if (options.signal !== undefined) {
+    init.signal = options.signal;
+  }
+
+  if (options.body !== undefined) {
+    init.body = JSON.stringify(options.body);
+  }
+
+  return client.fetch(url, init);
 }
 
 export type HttpClient = ReturnType<typeof createHttpClient>;

@@ -1,4 +1,5 @@
 import { requestStream, resolveDeploymentId } from "../core/http";
+import { setIfDefined } from "../core/object";
 import { readTextStream } from "../core/stream";
 import type { HttpClient } from "../core/http";
 import type { StreamRequest, StreamResponse } from "../types";
@@ -14,19 +15,23 @@ export async function streamRequest(
 ): Promise<{ data: StreamResponse; raw: unknown }> {
   const deploymentId = resolveDeploymentId(client.deploymentId, input.deploymentId);
 
-  const response = await requestStream(client, {
+  const requestOptions: Parameters<typeof requestStream>[1] = {
     method: "POST",
     path: `/v1/runner/${deploymentId}/stream`,
-    signal: input.signal,
     body: {
-      content: input.content,
-      variables: input.variables
+      content: input.content
     }
-  });
+  };
 
-  const content = await readTextStream(response, {
-    onChunk: options?.onChunk
-  });
+  setIfDefined(requestOptions, "signal", input.signal);
+
+  const body = requestOptions.body as { content: StreamRequest["content"]; variables?: StreamRequest["variables"] };
+  setIfDefined(body, "variables", input.variables);
+
+  const response = await requestStream(client, requestOptions);
+
+  const streamOptions = options?.onChunk ? { onChunk: options.onChunk } : undefined;
+  const content = await readTextStream(response, streamOptions);
 
   const data: StreamResponse = {
     content

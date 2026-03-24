@@ -7,6 +7,7 @@ import {
 import { runRequest } from "./apis/run";
 import { streamRequest } from "./apis/stream";
 import { createHttpClient } from "./core/http";
+import { setIfDefined } from "./core/object";
 import { createStore } from "./core/store";
 import { createConfigError, createValidationError, toErrorData, wrapUnknownError } from "./errors";
 import type {
@@ -270,10 +271,10 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
           historyLimit?: number;
         };
 
-        if (options?.deploymentId !== undefined) request.deploymentId = options.deploymentId;
-        if (options?.variables !== undefined) request.variables = options.variables;
-        if (options?.meta !== undefined) request.meta = options.meta;
-        if (options?.historyLimit !== undefined) request.historyLimit = options.historyLimit;
+        setIfDefined(request, "deploymentId", options?.deploymentId);
+        setIfDefined(request, "variables", options?.variables);
+        setIfDefined(request, "meta", options?.meta);
+        setIfDefined(request, "historyLimit", options?.historyLimit);
 
         const activeConversationId = conversationStore.getState().id;
         if (!activeConversationId) {

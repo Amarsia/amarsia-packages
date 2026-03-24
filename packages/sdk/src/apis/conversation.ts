@@ -1,4 +1,5 @@
 import { requestJson, requestStream, resolveDeploymentId } from "../core/http";
+import { setIfDefined } from "../core/object";
 import { readTextStream } from "../core/stream";
 import { createConfigError } from "../errors";
 import type { HttpClient } from "../core/http";
@@ -17,16 +18,26 @@ export async function createConversation(
 ): Promise<{ data: ConversationData; raw: unknown }> {
   const deploymentId = resolveDeploymentId(client.deploymentId, input.deploymentId);
 
-  return requestJson<ConversationData>(client, {
+  const requestOptions: Parameters<typeof requestJson<ConversationData>>[1] = {
     method: "POST",
     path: `/v1/runner/${deploymentId}/conversation`,
-    signal: input.signal,
     body: {
-      content: input.content,
-      variables: input.variables,
-      meta: input.meta
+      content: input.content
     }
-  });
+  };
+
+  setIfDefined(requestOptions, "signal", input.signal);
+
+  const body = requestOptions.body as {
+    content: ConversationSendRequest["content"];
+    variables?: ConversationSendRequest["variables"];
+    meta?: ConversationSendRequest["meta"];
+  };
+
+  setIfDefined(body, "variables", input.variables);
+  setIfDefined(body, "meta", input.meta);
+
+  return requestJson<ConversationData>(client, requestOptions);
 }
 
 type ContinueConversationOptions = {
@@ -41,20 +52,28 @@ export async function continueConversationStream(
 ): Promise<{ data: ConversationData; raw: unknown }> {
   const deploymentId = resolveDeploymentId(client.deploymentId, input.deploymentId);
 
-  const response = await requestStream(client, {
+  const requestOptions: Parameters<typeof requestStream>[1] = {
     method: "POST",
     path: `/v1/runner/${deploymentId}/conversation/stream`,
-    signal: input.signal,
     body: {
       conversation_id: conversationId,
-      content: input.content,
-      history_limit: input.historyLimit
+      content: input.content
     }
-  });
+  };
 
-  const content = await readTextStream(response, {
-    onChunk: options?.onChunk
-  });
+  setIfDefined(requestOptions, "signal", input.signal);
+
+  const streamBody = requestOptions.body as {
+    conversation_id: string;
+    content: ConversationSendRequest["content"];
+    history_limit?: number;
+  };
+  setIfDefined(streamBody, "history_limit", input.historyLimit);
+
+  const response = await requestStream(client, requestOptions);
+
+  const streamOptions = options?.onChunk ? { onChunk: options.onChunk } : undefined;
+  const content = await readTextStream(response, streamOptions);
 
   const data: ConversationData = {
     conversation_id: conversationId,
