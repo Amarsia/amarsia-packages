@@ -1,12 +1,13 @@
 {
   "name": "@amarsia/react",
   "version": "0.1.1",
-  "description": "React/Next.js wrapper package for the Amarsia SDK.",
+  "description": "The official React and Next.js SDK wrapper for Amarsia — build AI assistants with stateful hooks.",
   "license": "MIT",
   "author": "Amarsia",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Amarsia/amarsia-packages"
+    "url": "https://github.com/Amarsia/amarsia-packages",
+    "directory": "packages/react"
   },
   "homepage": "https://github.com/Amarsia/amarsia-packages/tree/main/packages/react#readme",
   "bugs": {
@@ -26,6 +27,23 @@
   "files": [
     "dist",
     "README.md"
+  ],
+  "keywords": [
+    "ai",
+    "sdk",
+    "amarsia",
+    "assistant",
+    "streaming",
+    "llm",
+    "orchestration",
+    "agent builder",
+    "react",
+    "nextjs",
+    "react hooks",
+    "ai chat",
+    "stateful hooks",
+    "react ai sdk",
+    "nextjs ai sdk"
   ],
   "sideEffects": false,
   "engines": {

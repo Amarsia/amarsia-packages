@@ -2,6 +2,10 @@
 
 React wrapper for `@amarsia/sdk`.
 
+- npm: [@amarsia/react](https://www.npmjs.com/package/@amarsia/react)
+- repository: [amarsia-packages/packages/react](https://github.com/Amarsia/amarsia-packages/tree/main/packages/react)
+- core SDK: [@amarsia/sdk](https://www.npmjs.com/package/@amarsia/sdk)
+
 This package is intentionally thin:
 
 - no API/config logic duplicated from SDK
@@ -9,6 +13,16 @@ This package is intentionally thin:
 - only React hooks over SDK controllers
 
 Any behavior changes in `@amarsia/sdk` automatically flow through here.
+
+## What Is `@amarsia/react`?
+
+`@amarsia/react` is the official React and Next.js integration for Amarsia AI APIs. It gives you simple stateful hooks for:
+
+- one-shot AI calls (`useRun`)
+- streaming AI output (`useStream`)
+- stateful multi-turn chat (`useConversation`)
+
+This is useful for chat UIs, copilots, AI forms, and agentic app experiences.
 
 ## Install
 
@@ -128,3 +142,21 @@ const { run, stream, conversation } = useAmarsia(client);
 - Calls SDK methods directly (`run(...)`, `stream(...)`, `conversation.send(...)`).
 
 If you already use `@amarsia/sdk`, this package just removes manual `useState/useEffect` wiring.
+
+## FAQ
+
+### Is this the official Amarsia React package?
+
+Yes. `@amarsia/react` is the official React wrapper for `@amarsia/sdk`.
+
+### Do I need both `@amarsia/react` and `@amarsia/sdk`?
+
+`@amarsia/react` installs `@amarsia/sdk` automatically. If you import SDK APIs directly in your app, install both explicitly.
+
+### Does this support Next.js?
+
+Yes. The hooks work in React and Next.js client components.
+
+### Search terms
+
+Amarsia React SDK, Amarsia Next.js SDK, Amarsia React hooks, Amarsia streaming chat React, Amarsia conversation hooks.

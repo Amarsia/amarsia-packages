@@ -2,12 +2,26 @@
 
 Official TypeScript/JavaScript SDK for Amarsia APIs.
 
+- npm: [@amarsia/sdk](https://www.npmjs.com/package/@amarsia/sdk)
+- repository: [amarsia-packages/packages/sdk](https://github.com/Amarsia/amarsia-packages/tree/main/packages/sdk)
+- React wrapper: [@amarsia/react](https://www.npmjs.com/package/@amarsia/react)
+
 `@amarsia/sdk` gives you a transparent API-style interface with state built in:
 
 - Initialize once with `amarsia.init(...)`
 - Use `client.run(...)` for one-shot responses
 - Use `client.stream(...)` for streaming responses
 - Use `client.conversation` for stateful conversation workflows with `conversation.id` and `conversation.data`
+
+## What Is `@amarsia/sdk`?
+
+`@amarsia/sdk` is the official Amarsia AI SDK for JavaScript and TypeScript. It provides:
+
+- `run` for one-shot runner API requests
+- `stream` for streaming AI output
+- `conversation` for stateful multi-turn chat with conversation history
+
+It is designed for Node.js, browser apps, Next.js apps, and agentic workflows where you need simple API access with built-in state.
 
 ## Install
 
@@ -247,3 +261,21 @@ Recommended production approach:
 - If you must call from browser, use short-lived tokens and rotate frequently
 
 The SDK warns in browser contexts unless `dangerouslyAllowBrowserApiKey: true` is set during init.
+
+## FAQ
+
+### Is this the official Amarsia SDK?
+
+Yes. `@amarsia/sdk` is the official SDK for Amarsia APIs.
+
+### Does it support streaming AI responses?
+
+Yes. Use `client.stream(...)` for streaming output and `client.conversation.send(...)` for stateful streaming conversation continuation.
+
+### Should I use this with React?
+
+For raw SDK usage, use `@amarsia/sdk` directly. For React hooks with no manual `useState/useEffect` wiring, use [@amarsia/react](https://www.npmjs.com/package/@amarsia/react).
+
+### Search terms
+
+Amarsia SDK, Amarsia TypeScript SDK, Amarsia JavaScript SDK, Amarsia conversation API SDK, Amarsia streaming API SDK.

@@ -1,12 +1,13 @@
 {
   "name": "@amarsia/sdk",
   "version": "0.1.1",
-  "description": "Official TypeScript/JavaScript SDK for Amarsia APIs.",
+  "description": "The official JavaScript and TypeScript SDK for Amarsia — run, stream, and manage AI assistants.",
   "license": "MIT",
   "author": "Amarsia",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Amarsia/amarsia-packages"
+    "url": "https://github.com/Amarsia/amarsia-packages",
+    "directory": "packages/sdk"
   },
   "homepage": "https://github.com/Amarsia/amarsia-packages/tree/main/packages/sdk#readme",
   "bugs": {
@@ -26,6 +27,22 @@
   "files": [
     "dist",
     "README.md"
+  ],
+  "keywords": [
+    "ai",
+    "sdk",
+    "amarsia",
+    "assistant",
+    "streaming",
+    "llm",
+    "orchestration",
+    "agent builder",
+    "ai sdk",
+    "typescript sdk",
+    "javascript sdk",
+    "conversation api",
+    "stateful ai sdk",
+    "multimodal ai"
   ],
   "sideEffects": false,
   "engines": {
