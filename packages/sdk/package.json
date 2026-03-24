@@ -1,0 +1,45 @@
+{
+  "name": "@amarsia/sdk",
+  "version": "0.1.0",
+  "description": "Official TypeScript/JavaScript SDK for Amarsia APIs.",
+  "license": "MIT",
+  "author": "Amarsia",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/amarsia/amarsia-sdk.git"
+  },
+  "homepage": "https://github.com/amarsia/amarsia-sdk/tree/main/packages/sdk#readme",
+  "bugs": {
+    "url": "https://github.com/amarsia/amarsia-sdk/issues"
+  },
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "clean": "rimraf dist",
+    "build": "npm run clean && tsup",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

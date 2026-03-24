@@ -1,0 +1,43 @@
+{
+  "name": "amarsia-monorepo",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Monorepo for Amarsia npm packages.",
+  "license": "MIT",
+  "author": "Amarsia",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/amarsia/amarsia-sdk.git"
+  },
+  "homepage": "https://github.com/amarsia/amarsia-sdk#readme",
+  "bugs": {
+    "url": "https://github.com/amarsia/amarsia-sdk/issues"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "clean": "npm run clean --workspaces --if-present",
+    "build": "npm run build --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "npm run build && changeset publish"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.35.0",
+    "@changesets/cli": "^2.29.5",
+    "eslint": "^9.35.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^15.15.0",
+    "rimraf": "^6.0.1",
+    "tsup": "^8.3.5",
+    "typescript-eslint": "^8.42.0",
+    "typescript": "^5.9.2"
+  }
+}
