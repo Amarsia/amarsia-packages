@@ -1,5 +1,16 @@
 # @amarsia/react
 
+## 1.1.0
+
+### Minor Changes
+
+- 53c0ebb: feat: API reference and mutation restructure
+
+### Patch Changes
+
+- Updated dependencies [53c0ebb]
+  - @amarsia/sdk@1.1.0
+
 ## 1.0.0
 
 ### Major Changes

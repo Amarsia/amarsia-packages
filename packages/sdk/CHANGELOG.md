@@ -1,5 +1,11 @@
 # @amarsia/sdk
 
+## 1.1.0
+
+### Minor Changes
+
+- 53c0ebb: feat: API reference and mutation restructure
+
 ## 1.0.0
 
 ### Major Changes
