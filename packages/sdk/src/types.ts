@@ -80,6 +80,16 @@ export type ConversationSendRequest = {
   signal?: AbortSignal;
 };
 
+export type ConversationRunOptions = {
+  content: MessageContent[];
+  historyLimit?: number;
+  signal?: AbortSignal;
+  variables?: Record<string, unknown>;
+  meta?: Record<string, string | number | boolean>;
+};
+
+export type ConversationStreamOptions = ConversationRunOptions;
+
 export type ConversationData = {
   conversation_id: string;
   content: string | Record<string, unknown>;
@@ -125,7 +135,7 @@ export type PaginatedMessagesResponse = {
 export type StatefulResult<TData> = {
   status: AmarsiaStatus;
   data: TData | null;
-  stream: string;
+  live: string;
   error: AmarsiaSdkErrorData | null;
   meta: UsageMetadata | null;
   raw: unknown;
@@ -133,6 +143,7 @@ export type StatefulResult<TData> = {
 
 export type ConversationState = StatefulResult<ConversationData> & {
   id: string | null;
+  deploymentId: string | null;
   messages: ConversationMessage[];
   messagesPageInfo: {
     page: number;
@@ -156,8 +167,6 @@ export type InitConfig = {
   dangerouslyAllowBrowserApiKey?: boolean;
   fetch?: typeof globalThis.fetch;
 };
-
-export type SendOptions = Omit<ConversationSendRequest, "content">;
 
 export type AmarsiaSdkErrorData = {
   name: string;

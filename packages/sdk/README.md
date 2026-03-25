@@ -2,6 +2,7 @@
 
 Official TypeScript/JavaScript SDK for Amarsia APIs.
 
+- docs: [docs.amarsia.com](https://docs.amarsia.com)
 - npm: [@amarsia/sdk](https://www.npmjs.com/package/@amarsia/sdk)
 - repository: [amarsia-packages/packages/sdk](https://github.com/Amarsia/amarsia-packages/tree/main/packages/sdk)
 - React wrapper: [@amarsia/react](https://www.npmjs.com/package/@amarsia/react)
@@ -29,7 +30,7 @@ It is designed for Node.js, browser apps, Next.js apps, and agentic workflows wh
 npm install @amarsia/sdk
 ```
 
-## Quickstart
+## Quick Start
 
 ```ts
 import { amarsia } from "@amarsia/sdk";
@@ -40,7 +41,6 @@ const client = amarsia.init({
 });
 
 const result = await client.run({
-  deploymentId: "dep_123",
   content: [{ type: "text", text: "Write a short intro for Amarsia." }]
 });
 
@@ -63,9 +63,10 @@ const client = amarsia.init({
 
 ### Deployment ID behavior
 
-- provide `deploymentId` once in `amarsia.init(...)` for defaults
-- optionally override per call in `run`, `stream`, or `conversation.send`
-- if neither init nor call provides it, SDK throws a configuration error
+- `run` and `stream` use `deploymentId` from `amarsia.init(...)` by default.
+- `run` and `stream` can still override `deploymentId` per call.
+- `conversation` uses the deployment context set via `conversation.start(..., deploymentId?)`; if omitted there, it falls back to init-level default.
+- If no deployment id is available from either source, SDK throws a configuration error.
 
 ## API overview
 
@@ -74,18 +75,25 @@ const client = amarsia.init({ apiKey: "...", deploymentId: "dep_123" });
 
 await client.run({ content: [...] });
 await client.stream({ content: [...] });
-await client.conversation.send([...]);
+client.conversation.start();
+await client.conversation.stream({ content: [...] });
 ```
 
 All controllers expose state:
 
 - `.status` -> `idle | loading | streaming | success | error`
-- `.data` -> latest complete response
-- `.stream` -> live stream buffer while streaming
+- `.data` -> latest complete response payload
+- `.live` -> live stream buffer only during streaming (cleared after completion)
 - `.error` -> typed SDK error object
 - `.meta` -> token/model/request metadata when present
 - `.raw` -> raw response payload
 - `.getState()` and `.subscribe(...)` for reactive UI updates
+
+### `.data` vs `.live`
+
+- Use `.live` for live token/chunk rendering while a stream is in progress.
+- Use `.data` for the final completed response after the call finishes.
+- For streaming calls, `.live` is intentionally transient and reset to empty on completion.
 
 ## Run API
 
@@ -105,7 +113,7 @@ console.log(client.run.data);
 const unsubscribe = client.stream.subscribe((state) => {
   if (state.status === "streaming") {
     // progressively updated during stream
-    console.log(state.stream);
+    console.log(state.live);
   }
 });
 
@@ -125,110 +133,216 @@ client.stream.abort();
 
 ## Conversation API (stateful)
 
-`client.conversation` keeps an instance-scoped `conversation.id` until you call `conversation.start()`.
+`client.conversation` keeps an instance-scoped conversation context (`conversation.id`, `deploymentId`, state, history helpers).
+
+### 1) Start a conversation context
 
 ```ts
 const conversation = client.conversation;
 
-// First send creates a new conversation
-await conversation.send([{ type: "text", text: "Help me plan a product demo." }], {
-  meta: { team: "growth", channel: "web" }
-});
+conversation.start(); // new local conversation context, use init deploymentId
+conversation.start("conv_existing_123"); // bind to existing conversation id
+conversation.start(undefined, "dep_support"); // new context + specific deployment
+conversation.start("conv_existing_123", "dep_support"); // bind both
+```
 
-console.log(conversation.id); // active conversation_id
-console.log(conversation.data); // latest API response payload
+Important:
+- `conversation.start(...)` is the only place to set conversation id and conversation deployment context.
+- `conversation.run(...)` and `conversation.stream(...)` do not accept conversation id or deployment id overrides.
 
-// Next send continues same conversation with streaming endpoint under the hood
-await conversation.send([{ type: "text", text: "Now make it shorter." }], {
+### 2) Continue conversation (run vs stream)
+
+Use `conversation.run(...)` for single complete responses and `conversation.stream(...)` for live chunked output.
+
+```ts
+// non-stream continuation (final response only)
+await conversation.run({
+  content: [{ type: "text", text: "Summarize the previous answer." }],
   historyLimit: 10
 });
 
-// Continue a known conversation ID
-conversation.start("conv_existing_123");
-await conversation.send([{ type: "text", text: "Resume context." }]);
+// stream continuation (live chunks + final response)
+await conversation.stream({
+  content: [{ type: "text", text: "Now explain in bullet points." }],
+  historyLimit: 10
+});
 ```
 
-Start behavior:
+Fresh conversation rule:
+- `variables` and `meta` are accepted only when no active conversation id exists (fresh conversation creation path).
+- If a conversation id is already active, passing `variables` or `meta` throws a validation error.
+
+### 3) Query old conversations and messages
 
 ```ts
-conversation.start(); // clear local conversation state and start fresh
-conversation.start("conv_existing_123"); // set active conversation id locally
-```
-
-Conversation helpers:
-
-```ts
-const messages = await conversation.loadMessages({ page: 1, pageSize: 20 });
+// list old conversations using meta filters
 const conversations = await conversation.list({
   page: 1,
   pageSize: 20,
   meta: { team: "growth" }
 });
 
-// With no args, loadMessages fetches the first page (API defaults)
-const firstPageMessages = await conversation.loadMessages();
-
-// Keep local messages and append another page
-await conversation.loadMessages({ page: 2, pageSize: 20, append: true });
+// get messages for the active conversation id
+const firstPage = await conversation.loadMessages(); // API defaults
+const nextPage = await conversation.loadMessages({ page: 2, pageSize: 20, append: true });
 ```
 
-## React / Next.js usage
+`append: true` merges new pages into local state and deduplicates by message `id`.
 
-This package is framework-agnostic. In React/Next, use `subscribe/getState` to keep UI synced.
+### 4) Conversation state fields
 
-```tsx
-import { useEffect, useMemo, useState } from "react";
-import { amarsia } from "@amarsia/sdk";
+- `conversation.id`: current active conversation id
+- `conversation.deploymentId`: active deployment context for conversation calls
+- `conversation.status`: `idle | loading | streaming | success | error`
+- `conversation.data`: latest complete conversation response payload
+- `conversation.live`: transient streaming buffer (cleared on completion)
+- `conversation.meta`: model/token/request metadata when present
+- `conversation.messages`: locally cached messages from `loadMessages(...)`
+- `conversation.messagesPageInfo`: paging info for messages
+- `conversation.conversations`: locally cached list from `list(...)`
+- `conversation.conversationsPageInfo`: paging info for conversations
+- `conversation.error`: typed SDK error object
+- `conversation.raw`: latest raw response envelope/payload
 
-const client = amarsia.init({
-  apiKey: process.env.NEXT_PUBLIC_AMARSIA_API_KEY!,
-  deploymentId: process.env.NEXT_PUBLIC_AMARSIA_DEPLOYMENT_ID!
-});
+## React / Next.js
 
-export function ChatWidget() {
-  const conversation = useMemo(() => client.conversation, []);
-  const [state, setState] = useState(conversation.getState());
+For React/Next usage, use [@amarsia/react](https://www.npmjs.com/package/@amarsia/react) instead of manually wiring `useState` + `useEffect`.
 
-  useEffect(() => {
-    return conversation.subscribe(setState);
-  }, [conversation]);
+- React package README: [amarsia-packages/packages/react](https://github.com/Amarsia/amarsia-packages/tree/main/packages/react)
+- Full docs: [docs.amarsia.com](https://docs.amarsia.com)
 
-  async function onSend(prompt: string) {
-    await conversation.send([{ type: "text", text: prompt }]);
-  }
+## API Reference (Types and field meaning)
 
-  return (
-    <div>
-      <div>Conversation ID: {state.id ?? "not started"}</div>
-      <div>Status: {state.status}</div>
-      <pre>{state.stream || String(state.data?.content ?? "")}</pre>
-      <button onClick={() => void onSend("Hello")}>Send</button>
-    </div>
-  );
+### `amarsia.init` contract
+
+```ts
+type InitConfig = {
+  apiKey: string;
+  deploymentId?: string;
+  baseUrl?: string;
+  dangerouslyAllowBrowserApiKey?: boolean;
+  fetch?: typeof globalThis.fetch;
+};
+```
+
+### Stateful controller contract
+
+All stateful controllers (`client.run`, `client.stream`, `client.conversation`) expose:
+
+```ts
+{
+  status: "idle" | "loading" | "streaming" | "success" | "error";
+  data: unknown | null; // latest complete response payload
+  live: string; // transient live stream buffer
+  error: { name: string; message: string; ... } | null;
+  meta: Record<string, unknown> | null;
+  raw: unknown;
+  getState(): Readonly<State>;
+  subscribe(listener: (state: Readonly<State>) => void): () => void;
 }
 ```
 
-## Content format
-
-Text:
+### `MessageContent`
 
 ```ts
-[{ type: "text", text: "Hello" }]
+type MessageContent =
+  | { type: "text"; text: string }
+  | { type: "image" | "video" | "audio" | "url"; mime_type: string; file_uri: string };
 ```
 
-File/url input:
+### `run` request body
 
 ```ts
-[
-  {
-    type: "image",
-    mime_type: "image/png",
-    file_uri: "https://example.com/image.png"
-  }
-]
+{
+  content: MessageContent[];
+  variables?: Record<string, unknown>;
+  deploymentId?: string;
+}
 ```
 
-Supported non-text `type` values are `image`, `video`, `audio`, and `url`.
+`run` response (common fields):
+
+```ts
+{
+  content: string | Record<string, unknown>;
+  model?: string;
+  input_tokens?: number;
+  output_tokens?: number;
+  [key: string]: unknown;
+}
+```
+
+### `stream` request body
+
+Same as `run`, plus optional `signal`.
+
+### `conversation.start`
+
+```ts
+start(conversationId?: string, deploymentId?: string): void
+```
+
+Behavior:
+- Sets active conversation context for future conversation calls.
+- If `conversationId` is omitted, next `conversation.run/stream` creates a fresh conversation.
+- If `deploymentId` is omitted, conversation context keeps previous deployment id (or init default).
+
+### `conversation.run` / `conversation.stream` request body
+
+```ts
+{
+  content: MessageContent[];
+  historyLimit?: number;
+  signal?: AbortSignal;
+  variables?: Record<string, unknown>; // fresh-conversation only
+  meta?: Record<string, string | number | boolean>; // fresh-conversation only
+}
+```
+
+Conversation behavior contract:
+- Fresh conversation (no active `conversation.id`):
+  - `run`/`stream` creates conversation using `/conversation`.
+  - `variables` and `meta` are accepted.
+- Existing conversation (active `conversation.id`):
+  - `run` continues via non-stream conversation endpoint.
+  - `stream` continues via stream conversation endpoint.
+  - `variables` and `meta` are rejected with validation error.
+
+### Response highlights
+
+- `content`: model output (string or structured object depending on deployment behavior)
+- `conversation_id`: conversation identifier for conversation APIs
+- `model`: model identifier used
+- `input_tokens` / `output_tokens`: token usage
+- `created_at` / `updated_at`: timestamps when present
+
+### `conversation` state fields
+
+```ts
+{
+  id: string | null;
+  deploymentId: string | null;
+  status: "idle" | "loading" | "streaming" | "success" | "error";
+  data: ConversationData | null;
+  live: string;
+  error: AmarsiaSdkErrorData | null;
+  meta: UsageMetadata | null;
+  raw: unknown;
+  messages: ConversationMessage[];
+  messagesPageInfo: { page: number; page_size: number; total: number; has_more: boolean } | null;
+  conversations: Array<Record<string, unknown>>;
+  conversationsPageInfo: { page: number; page_size: number; total: number; has_more: boolean } | null;
+}
+```
+
+### History/query helpers
+
+```ts
+conversation.loadMessages({ page?, pageSize?, append? });
+conversation.list({ page?, pageSize?, meta? });
+```
+
+See full examples and endpoint docs at [docs.amarsia.com](https://docs.amarsia.com).
 
 ## Error handling
 
@@ -270,7 +384,7 @@ Yes. `@amarsia/sdk` is the official SDK for Amarsia APIs.
 
 ### Does it support streaming AI responses?
 
-Yes. Use `client.stream(...)` for streaming output and `client.conversation.send(...)` for stateful streaming conversation continuation.
+Yes. Use `client.stream(...)` for streaming output and `client.conversation.stream(...)` for stateful streaming conversation continuation.
 
 ### Should I use this with React?
 

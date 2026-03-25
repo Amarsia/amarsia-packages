@@ -86,6 +86,34 @@ export async function continueConversationStream(
   };
 }
 
+export async function continueConversation(
+  client: HttpClient,
+  input: ConversationSendRequest,
+  conversationId: string
+): Promise<{ data: ConversationData; raw: unknown }> {
+  const deploymentId = resolveDeploymentId(client.deploymentId, input.deploymentId);
+
+  const requestOptions: Parameters<typeof requestJson<ConversationData>>[1] = {
+    method: "POST",
+    path: `/v1/runner/${deploymentId}/conversation`,
+    body: {
+      conversation_id: conversationId,
+      content: input.content
+    }
+  };
+
+  setIfDefined(requestOptions, "signal", input.signal);
+
+  const body = requestOptions.body as {
+    conversation_id: string;
+    content: ConversationSendRequest["content"];
+    history_limit?: number;
+  };
+  setIfDefined(body, "history_limit", input.historyLimit);
+
+  return requestJson<ConversationData>(client, requestOptions);
+}
+
 export async function getConversationMessages(
   client: HttpClient,
   input: LoadMessagesRequest

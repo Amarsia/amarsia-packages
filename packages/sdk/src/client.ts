@@ -1,4 +1,5 @@
 import {
+  continueConversation,
   continueConversationStream,
   createConversation,
   getConversationMessages,
@@ -13,6 +14,8 @@ import { createConfigError, createValidationError, toErrorData, wrapUnknownError
 import type {
   AmarsiaSdkErrorData,
   ConversationData,
+  ConversationRunOptions,
+  ConversationStreamOptions,
   ConversationState,
   InitConfig,
   ListConversationsRequest,
@@ -20,7 +23,6 @@ import type {
   MessageContent,
   RunRequest,
   RunResponse,
-  SendOptions,
   StatefulResult,
   StreamRequest,
   StreamResponse,
@@ -31,7 +33,7 @@ import type {
 type StatefulBindings<TData> = {
   readonly status: StatefulResult<TData>["status"];
   readonly data: TData | null;
-  readonly stream: string;
+  readonly live: string;
   readonly error: AmarsiaSdkErrorData | null;
   readonly meta: UsageMetadata | null;
   readonly raw: unknown;
@@ -49,9 +51,10 @@ export type StreamController = ((request: StreamRequest) => Promise<StreamRespon
 
 export type ConversationController = {
   readonly id: string | null;
+  readonly deploymentId: string | null;
   readonly status: ConversationState["status"];
   readonly data: ConversationData | null;
-  readonly stream: string;
+  readonly live: string;
   readonly error: AmarsiaSdkErrorData | null;
   readonly meta: UsageMetadata | null;
   readonly raw: unknown;
@@ -61,12 +64,13 @@ export type ConversationController = {
   readonly conversationsPageInfo: ConversationState["conversationsPageInfo"];
   getState: () => Readonly<ConversationState>;
   subscribe: (listener: Subscription<ConversationState>) => () => void;
-  send: (content: MessageContent[], options?: SendOptions) => Promise<ConversationData>;
+  run: (options: ConversationRunOptions) => Promise<ConversationData>;
+  stream: (options: ConversationStreamOptions) => Promise<ConversationData>;
   loadMessages: (
     input?: Omit<LoadMessagesRequest, "conversationId"> & { append?: boolean }
   ) => Promise<ConversationState["messages"]>;
   list: (input?: ListConversationsRequest) => Promise<ConversationState["conversations"]>;
-  start: (conversationId?: string) => void;
+  start: (conversationId?: string, deploymentId?: string) => void;
   abort: () => void;
 };
 
@@ -84,6 +88,7 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
   const conversationStore = createStore<ConversationState>({
     ...initialState<ConversationData>(),
     id: null,
+    deploymentId: config.deploymentId ?? null,
     messages: [],
     messagesPageInfo: null,
     conversations: [],
@@ -99,7 +104,7 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
       ...previous,
       status: "loading",
       error: null,
-      stream: ""
+      live: ""
     }));
 
     try {
@@ -136,7 +141,7 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
       ...previous,
       status: "streaming",
       error: null,
-      stream: "",
+      live: "",
       data: null
     }));
 
@@ -151,7 +156,7 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
           onChunk: (chunk) => {
             streamStore.setState((previous) => ({
               ...previous,
-              stream: `${previous.stream}${chunk}`
+              live: `${previous.live}${chunk}`
             }));
           }
         }
@@ -164,7 +169,7 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
         data: response.data,
         raw: response.raw,
         meta,
-        stream: ""
+        live: ""
       }));
 
       return response.data;
@@ -191,14 +196,17 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
     get id() {
       return conversationStore.getState().id;
     },
+    get deploymentId() {
+      return conversationStore.getState().deploymentId;
+    },
     get status() {
       return conversationStore.getState().status;
     },
     get data() {
       return conversationStore.getState().data;
     },
-    get stream() {
-      return conversationStore.getState().stream;
+    get live() {
+      return conversationStore.getState().live;
     },
     get error() {
       return conversationStore.getState().error;
@@ -227,12 +235,13 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
     subscribe(listener) {
       return conversationStore.subscribe(listener);
     },
-    start(conversationId) {
+    start(conversationId, deploymentId) {
       conversationAbortController?.abort();
       conversationAbortController = null;
       conversationStore.setState((previous) => ({
         ...initialState<ConversationData>(),
         id: conversationId ?? null,
+        deploymentId: deploymentId ?? previous.deploymentId,
         messages: [],
         messagesPageInfo: null,
         conversations: previous.conversations,
@@ -243,24 +252,24 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
       conversationAbortController?.abort();
       conversationAbortController = null;
     },
-    async send(content, options) {
-      validateMessageContent(content);
-      warnIgnoredConversationIdInSend(options);
+    async run(options: ConversationRunOptions) {
+      validateMessageContent(options.content);
       conversationAbortController?.abort();
       conversationAbortController = new AbortController();
-      const signal = mergeAbortSignals(options?.signal, conversationAbortController.signal);
+      const signal = mergeAbortSignals(options.signal, conversationAbortController.signal);
 
       conversationStore.setState((previous) => ({
         ...previous,
-        status: previous.id ? "streaming" : "loading",
+        status: "loading",
         error: null,
-        stream: "",
+        live: "",
         data: null
       }));
 
       try {
+        const currentState = conversationStore.getState();
         const request = {
-          content,
+          content: options.content,
           signal
         } as {
           content: MessageContent[];
@@ -271,13 +280,14 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
           historyLimit?: number;
         };
 
-        setIfDefined(request, "deploymentId", options?.deploymentId);
-        setIfDefined(request, "variables", options?.variables);
-        setIfDefined(request, "meta", options?.meta);
-        setIfDefined(request, "historyLimit", options?.historyLimit);
+        setIfDefined(request, "deploymentId", currentState.deploymentId ?? undefined);
+        setIfDefined(request, "historyLimit", options.historyLimit);
 
-        const activeConversationId = conversationStore.getState().id;
+        const activeConversationId = currentState.id;
         if (!activeConversationId) {
+          setIfDefined(request, "variables", options.variables);
+          setIfDefined(request, "meta", options.meta);
+
           const created = await createConversation(httpClient, request);
 
           const conversationId = created.data.conversation_id;
@@ -289,9 +299,97 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
             data: created.data,
             raw: created.raw,
             meta,
-            stream: ""
+            live: ""
           }));
           return created.data;
+        }
+
+        if (options.variables !== undefined || options.meta !== undefined) {
+          throw createValidationError(
+            "`variables` and `meta` are only supported when starting a new conversation (no active conversation id)."
+          );
+        }
+
+        const continued = await continueConversation(httpClient, request, activeConversationId);
+
+        const meta = extractUsageMeta(continued.data);
+        conversationStore.setState((previous) => ({
+          ...previous,
+          status: "success",
+          id: activeConversationId,
+          data: continued.data,
+          raw: continued.raw,
+          meta,
+          live: ""
+        }));
+        return continued.data;
+      } catch (error) {
+        const wrapped = wrapUnknownError(error);
+        conversationStore.setState((previous) => ({
+          ...previous,
+          status: "error",
+          error: toErrorData(wrapped)
+        }));
+        throw wrapped;
+      } finally {
+        conversationAbortController = null;
+      }
+    },
+    async stream(options: ConversationStreamOptions) {
+      validateMessageContent(options.content);
+      conversationAbortController?.abort();
+      conversationAbortController = new AbortController();
+      const signal = mergeAbortSignals(options.signal, conversationAbortController.signal);
+
+      conversationStore.setState((previous) => ({
+        ...previous,
+        status: previous.id ? "streaming" : "loading",
+        error: null,
+        live: "",
+        data: null
+      }));
+
+      try {
+        const currentState = conversationStore.getState();
+        const request = {
+          content: options.content,
+          signal
+        } as {
+          content: MessageContent[];
+          deploymentId?: string;
+          signal: AbortSignal;
+          variables?: Record<string, unknown>;
+          meta?: Record<string, string | number | boolean>;
+          historyLimit?: number;
+        };
+
+        setIfDefined(request, "deploymentId", currentState.deploymentId ?? undefined);
+        setIfDefined(request, "historyLimit", options.historyLimit);
+
+        const activeConversationId = currentState.id;
+        if (!activeConversationId) {
+          setIfDefined(request, "variables", options.variables);
+          setIfDefined(request, "meta", options.meta);
+
+          const created = await createConversation(httpClient, request);
+          const conversationId = created.data.conversation_id;
+          const meta = extractUsageMeta(created.data);
+          conversationStore.setState((previous) => ({
+            ...previous,
+            status: "success",
+            id: conversationId,
+            data: created.data,
+            raw: created.raw,
+            meta,
+            live: ""
+          }));
+          return created.data;
+        }
+
+        if (options.variables !== undefined || options.meta !== undefined) {
+          throw createValidationError(
+            "`variables` and `meta` are only supported when starting a new conversation (no active conversation id)."
+          );
         }
 
         const continued = await continueConversationStream(
@@ -302,7 +400,7 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
             onChunk: (chunk) => {
               conversationStore.setState((previous) => ({
                 ...previous,
-                stream: `${previous.stream}${chunk}`
+                live: `${previous.live}${chunk}`
               }));
             }
           }
@@ -316,7 +414,7 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
           data: continued.data,
           raw: continued.raw,
           meta,
-          stream: ""
+          live: ""
         }));
         return continued.data;
       } catch (error) {
@@ -420,7 +518,7 @@ function bindStateful<TData>(
   Object.defineProperties(target, {
     status: { get: () => store.getState().status },
     data: { get: () => store.getState().data },
-    stream: { get: () => store.getState().stream },
+    live: { get: () => store.getState().live },
     error: { get: () => store.getState().error },
     meta: { get: () => store.getState().meta },
     raw: { get: () => store.getState().raw }
@@ -437,7 +535,7 @@ function initialState<TData>(): StatefulResult<TData> {
   return {
     status: "idle",
     data: null,
-    stream: "",
+    live: "",
     error: null,
     meta: null,
     raw: null
@@ -488,19 +586,4 @@ function mergeAbortSignals(primary: AbortSignal | undefined, secondary: AbortSig
   return merged.signal;
 }
 
-let hasWarnedIgnoredConversationIdInSend = false;
-
-function warnIgnoredConversationIdInSend(options: SendOptions | undefined): void {
-  if (!options || hasWarnedIgnoredConversationIdInSend) {
-    return;
-  }
-
-  if ("conversationId" in (options as Record<string, unknown>)) {
-    hasWarnedIgnoredConversationIdInSend = true;
-     
-    console.warn(
-      "[Amarsia SDK] `conversation.send(..., { conversationId })` is ignored. Use `conversation.start(conversationId)` before sending."
-    );
-  }
-}
 
