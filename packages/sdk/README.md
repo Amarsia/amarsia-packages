@@ -54,12 +54,29 @@ console.log(client.run.meta); // token/model metadata when available
 import { amarsia } from "@amarsia/sdk";
 
 const client = amarsia.init({
-  apiKey: "YOUR_API_KEY", // required
+  apiKey: "YOUR_API_KEY", // optional; required only when the workflow has authentication enabled
   deploymentId: "dep_123", // optional default deployment for all calls
   baseUrl: "https://api.amarsia.com", // optional, defaults to this
   dangerouslyAllowBrowserApiKey: true // optional browser risk acknowledgment
 });
 ```
+
+### Public (auth-less) workflows
+
+If a workflow has **Authentication** turned off in the dashboard, you can
+call it without an API key. The request is authorized by the workflow's
+**Allowlist** based on the browser's `Origin` / `Referer`, so the
+initialization can simply omit `apiKey`:
+
+```ts
+const client = amarsia.init({
+  deploymentId: "dep_123"
+});
+```
+
+When `apiKey` is omitted, the SDK will not send the `x-api-key` header.
+If the workflow still requires authentication server-side, the API will
+return a 401.
 
 ### Deployment ID behavior
 
@@ -217,7 +234,7 @@ For React/Next usage, use [@amarsia/react](https://www.npmjs.com/package/@amarsi
 
 ```ts
 type InitConfig = {
-  apiKey: string;
+  apiKey?: string;
   deploymentId?: string;
   baseUrl?: string;
   dangerouslyAllowBrowserApiKey?: boolean;
@@ -346,7 +363,7 @@ See full examples and endpoint docs at [docs.amarsia.com](https://docs.amarsia.c
 
 ## Error handling
 
-SDK methods throw `AmarsiaSdkError` with normalized fields.
+Every SDK method (`run`, `stream`, `conversation.run`, `conversation.stream`, `conversation.loadMessages`, `conversation.list`) throws `AmarsiaSdkError` on failure with normalized fields.
 
 ```ts
 import { AmarsiaSdkError } from "@amarsia/sdk";
@@ -357,12 +374,62 @@ try {
   });
 } catch (error) {
   if (error instanceof AmarsiaSdkError) {
-    console.error(error.name, error.message, error.status, error.code);
+    console.error(error.name);    // e.g. "AmarsiaHttpError"
+    console.error(error.status);  // HTTP status, e.g. 401
+    console.error(error.code);    // stable string code, e.g. "unauthorized"
+    console.error(error.message); // human-readable message from the API
   } else {
     console.error(error);
   }
 }
 ```
+
+### Error field reference
+
+| Field | Description |
+|---|---|
+| `name` | Error class name: `AmarsiaHttpError`, `AmarsiaValidationError`, `AmarsiaConfigurationError`, `AmarsiaAbortError`, `AmarsiaNetworkError`. |
+| `status` | HTTP status for API errors. `undefined` for SDK-side errors. |
+| `code` | Stable symbolic code you can switch on. For HTTP errors derived from the status when the API doesn't send one. |
+| `message` | Human-readable message, extracted from the API response. |
+| `details` | The full response body (parsed) or raw string. |
+
+### Common codes
+
+| `code` | Typical cause |
+|---|---|
+| `bad_request` | Malformed payload or unknown deployment id. |
+| `unauthorized` | API key is required, invalid, expired, or for the wrong project. |
+| `forbidden` | The workflow is public but the request origin is not in its allowlist. |
+| `not_found` | The workflow or resource does not exist. |
+| `unprocessable_entity` | Request body failed server-side validation (FastAPI 422). |
+| `rate_limited` | Usage or action rate limits exceeded. |
+| `internal_server_error` | Unhandled error on the server. |
+
+### Example: branching on `code`
+
+```ts
+try {
+  await client.run({ content: [{ type: "text", text: "Hello" }] });
+} catch (error) {
+  if (!(error instanceof AmarsiaSdkError)) throw error;
+
+  switch (error.code) {
+    case "unauthorized":
+      // Missing or invalid apiKey for a workflow that requires authentication.
+      break;
+    case "forbidden":
+      // Public workflow, but the current origin is not on the allowlist.
+      break;
+    default:
+      throw error;
+  }
+}
+```
+
+### Controller state
+
+Every controller (`client.run`, `client.stream`, `client.conversation`) also mirrors the error on its state, so UIs that subscribe to `getState()` / `subscribe(...)` get `status === "error"` and the same `AmarsiaSdkErrorData` on `.error` without needing a try/catch.
 
 ## Security guidance
 

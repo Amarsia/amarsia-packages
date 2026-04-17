@@ -32,6 +32,9 @@ export type UsageMetadata = {
 };
 
 export type ApiErrorEnvelope = {
+  /**
+   * OpenAI-style error envelope.
+   */
   error?: {
     type?: string;
     message?: string;
@@ -39,6 +42,25 @@ export type ApiErrorEnvelope = {
     code?: string | null;
     [key: string]: unknown;
   };
+  /**
+   * FastAPI-style error envelope. Plain HTTPException serializes to
+   * `{ detail: "string" }`; validation errors serialize to
+   * `{ detail: [{ msg, loc, type, ... }, ...] }`.
+   */
+  detail?:
+    | string
+    | {
+        message?: string;
+        code?: string | null;
+        type?: string;
+        [key: string]: unknown;
+      }
+    | Array<{
+        msg?: string;
+        type?: string;
+        loc?: Array<string | number>;
+        [key: string]: unknown;
+      }>;
   [key: string]: unknown;
 };
 
@@ -161,7 +183,12 @@ export type ConversationState = StatefulResult<ConversationData> & {
 };
 
 export type InitConfig = {
-  apiKey: string;
+  /**
+   * Optional. Required only when the target workflow has authentication
+   * enabled server-side. Public workflows (authentication turned off) can
+   * be called without an API key and are authorized by their allowlist.
+   */
+  apiKey?: string;
   deploymentId?: string;
   baseUrl?: string;
   dangerouslyAllowBrowserApiKey?: boolean;
