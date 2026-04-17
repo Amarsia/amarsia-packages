@@ -1,5 +1,16 @@
 # @amarsia/react
 
+## 1.2.0
+
+### Minor Changes
+
+- 68f21f7: Allow keyless SDK calls for public workflows and improve error handling so users get clear status/code/message across run/stream/conversation methods.
+
+### Patch Changes
+
+- Updated dependencies [68f21f7]
+  - @amarsia/sdk@1.2.0
+
 ## 1.1.0
 
 ### Minor Changes
