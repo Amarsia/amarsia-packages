@@ -46,7 +46,9 @@ import { amarsia } from "@amarsia/sdk";
 import { useConversation } from "@amarsia/react";
 
 const client = amarsia.init({
-  apiKey: process.env.NEXT_PUBLIC_AMARSIA_API_KEY!,
+  // apiKey is optional. Omit it for public workflows (authentication off)
+  // where requests are authorized by the workflow's allowlist instead.
+  apiKey: process.env.NEXT_PUBLIC_AMARSIA_API_KEY,
   deploymentId: process.env.NEXT_PUBLIC_AMARSIA_DEPLOYMENT_ID!
 });
 

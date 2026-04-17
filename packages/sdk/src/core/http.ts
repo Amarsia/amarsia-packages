@@ -1,7 +1,8 @@
 import { createConfigError, createValidationError, fromHttpError, wrapUnknownError } from "../errors";
 import type { ApiErrorEnvelope, InitConfig } from "../types";
 
-type HttpClientConfig = Required<Pick<InitConfig, "apiKey" | "fetch">> & {
+type HttpClientConfig = Required<Pick<InitConfig, "fetch">> & {
+  apiKey?: string;
   baseUrl: string;
   deploymentId?: string;
   dangerouslyAllowBrowserApiKey?: boolean;
@@ -19,10 +20,7 @@ type RequestOptions = {
 let hasWarnedBrowserApiKey = false;
 
 export function createHttpClient(config: InitConfig): HttpClientConfig {
-  const apiKey = config.apiKey.trim();
-  if (!apiKey) {
-    throw createConfigError("`apiKey` is required in amarsia.init(...).");
-  }
+  const apiKey = config.apiKey?.trim();
 
   const fetchImpl = config.fetch ?? globalThis.fetch;
   if (typeof fetchImpl !== "function") {
@@ -30,13 +28,18 @@ export function createHttpClient(config: InitConfig): HttpClientConfig {
   }
 
   const baseUrl = normalizeBaseUrl(config.baseUrl ?? "https://api.amarsia.com");
-  warnForBrowserApiKey(config.dangerouslyAllowBrowserApiKey);
+  if (apiKey) {
+    warnForBrowserApiKey(config.dangerouslyAllowBrowserApiKey);
+  }
 
   const client: HttpClientConfig = {
-    apiKey,
     fetch: fetchImpl,
     baseUrl
   };
+
+  if (apiKey) {
+    client.apiKey = apiKey;
+  }
 
   if (config.deploymentId !== undefined) {
     client.deploymentId = config.deploymentId;
@@ -162,13 +165,18 @@ async function request(client: HttpClientConfig, options: RequestOptions): Promi
   const query = buildQuery(options.query);
   const url = `${client.baseUrl}${options.path}${query}`;
 
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...options.headers
+  };
+
+  if (client.apiKey) {
+    headers["x-api-key"] = client.apiKey;
+  }
+
   const init: RequestInit = {
     method: options.method ?? "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": client.apiKey,
-      ...options.headers
-    }
+    headers
   };
 
   if (options.signal !== undefined) {
