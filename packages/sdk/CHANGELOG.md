@@ -1,5 +1,11 @@
 # @amarsia/sdk
 
+## 1.2.1
+
+### Patch Changes
+
+- aba41d0: Improve conversation resume/history ergonomics by allowing loadMessages to accept an explicit conversationId, clarify start(...) resume behavior, and update SDK docs with resume and history-by-id examples.
+
 ## 1.2.0
 
 ### Minor Changes
