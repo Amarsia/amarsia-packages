@@ -14,6 +14,7 @@ import { createConfigError, createValidationError, toErrorData, wrapUnknownError
 import type {
   AmarsiaSdkErrorData,
   ConversationData,
+  ConversationLoadMessagesOptions,
   ConversationRunOptions,
   ConversationStreamOptions,
   ConversationState,
@@ -66,9 +67,7 @@ export type ConversationController = {
   subscribe: (listener: Subscription<ConversationState>) => () => void;
   run: (options: ConversationRunOptions) => Promise<ConversationData>;
   stream: (options: ConversationStreamOptions) => Promise<ConversationData>;
-  loadMessages: (
-    input?: Omit<LoadMessagesRequest, "conversationId"> & { append?: boolean }
-  ) => Promise<ConversationState["messages"]>;
+  loadMessages: (input?: ConversationLoadMessagesOptions) => Promise<ConversationState["messages"]>;
   list: (input?: ListConversationsRequest) => Promise<ConversationState["conversations"]>;
   start: (conversationId?: string, deploymentId?: string) => void;
   abort: () => void;
@@ -235,6 +234,10 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
     subscribe(listener) {
       return conversationStore.subscribe(listener);
     },
+    /**
+     * Sets a fresh conversation context or binds to an existing conversation id.
+     * Pass `conversationId` when you want to resume an existing thread.
+     */
     start(conversationId, deploymentId) {
       conversationAbortController?.abort();
       conversationAbortController = null;
@@ -430,9 +433,11 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
       }
     },
     async loadMessages(input) {
-      const conversationId = conversationStore.getState().id;
+      const conversationId = input?.conversationId ?? conversationStore.getState().id;
       if (!conversationId) {
-        throw createConfigError("No active conversation id. Send a message first or call conversation.start(conversationId).");
+        throw createConfigError(
+          "No conversation id found. Pass `conversationId` or call conversation.start(conversationId), then retry."
+        );
       }
 
       try {

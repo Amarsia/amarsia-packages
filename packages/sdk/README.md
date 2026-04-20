@@ -163,6 +163,25 @@ conversation.start(undefined, "dep_support"); // new context + specific deployme
 conversation.start("conv_existing_123", "dep_support"); // bind both
 ```
 
+### Resume an existing conversation id
+
+Store `conversation_id` from a previous API response in your DB, then resume that thread later:
+
+```ts
+const conversation = client.conversation;
+
+// Example: loaded from your database/session
+const storedConversationId = "conv_abc123";
+
+conversation.start(storedConversationId);
+
+const data = await conversation.run({
+  content: [{ type: "text", text: "Continue from where we left off." }]
+});
+
+console.log(data.conversation_id); // "conv_abc123"
+```
+
 Important:
 - `conversation.start(...)` is the only place to set conversation id and conversation deployment context.
 - `conversation.run(...)` and `conversation.stream(...)` do not accept conversation id or deployment id overrides.
@@ -202,6 +221,13 @@ const conversations = await conversation.list({
 // get messages for the active conversation id
 const firstPage = await conversation.loadMessages(); // API defaults
 const nextPage = await conversation.loadMessages({ page: 2, pageSize: 20, append: true });
+
+// or fetch by explicit id without mutating local conversation state
+const byId = await conversation.loadMessages({
+  conversationId: "conv_existing_123",
+  page: 1,
+  pageSize: 20
+});
 ```
 
 `append: true` merges new pages into local state and deduplicates by message `id`.
@@ -355,7 +381,7 @@ Conversation behavior contract:
 ### History/query helpers
 
 ```ts
-conversation.loadMessages({ page?, pageSize?, append? });
+conversation.loadMessages({ conversationId?, page?, pageSize?, append? });
 conversation.list({ page?, pageSize?, meta? });
 ```
 

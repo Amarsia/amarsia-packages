@@ -136,6 +136,13 @@ export type LoadMessagesRequest = {
   conversationId?: string;
 };
 
+export type ConversationLoadMessagesOptions = {
+  conversationId?: string;
+  page?: number;
+  pageSize?: number;
+  append?: boolean;
+};
+
 export type PaginatedConversationsResponse = {
   conversations: Array<Record<string, unknown>>;
   page: number;
