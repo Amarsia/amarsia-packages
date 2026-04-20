@@ -82,7 +82,8 @@ return a 401.
 
 - `run` and `stream` use `deploymentId` from `amarsia.init(...)` by default.
 - `run` and `stream` can still override `deploymentId` per call.
-- `conversation` uses the deployment context set via `conversation.start(..., deploymentId?)`; if omitted there, it falls back to init-level default.
+- `conversation` uses the init-level deployment by default.
+- For most apps, if you need a different deployment for conversations, create a new client instance with `amarsia.init({ deploymentId: "dep_..." })`.
 - If no deployment id is available from either source, SDK throws a configuration error.
 
 ## API overview
@@ -159,8 +160,13 @@ const conversation = client.conversation;
 
 conversation.start(); // new local conversation context, use init deploymentId
 conversation.start("conv_existing_123"); // bind to existing conversation id
-conversation.start(undefined, "dep_support"); // new context + specific deployment
-conversation.start("conv_existing_123", "dep_support"); // bind both
+```
+
+For most apps, prefer creating a new client instance when switching deployments:
+
+```ts
+const supportClient = amarsia.init({ apiKey: "...", deploymentId: "dep_support_uuid" });
+const salesClient = amarsia.init({ apiKey: "...", deploymentId: "dep_sales_uuid" });
 ```
 
 ### Resume an existing conversation id
@@ -185,6 +191,9 @@ console.log(data.conversation_id); // "conv_abc123"
 Important:
 - `conversation.start(...)` is the only place to set conversation id and conversation deployment context.
 - `conversation.run(...)` and `conversation.stream(...)` do not accept conversation id or deployment id overrides.
+- Calling `conversation.start(...)` resets local conversation state for the new context.
+- Do not switch deployment mid-thread and expect to continue the same conversation history.
+- The second argument on `conversation.start(conversationId?, deploymentId?)` is an advanced option; most users should switch deployments by initializing a new client.
 
 ### 2) Continue conversation (run vs stream)
 
