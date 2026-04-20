@@ -209,6 +209,10 @@ conversation.list({ page?, pageSize?, meta? }): Promise<Array<Record<string, unk
 conversation.abort(): void;
 ```
 
+Note:
+- Most apps should switch deployments by creating a new SDK client (`amarsia.init({ deploymentId: "dep_..." })`) instead of passing `deploymentId` to `conversation.start(...)`.
+- The second `deploymentId` argument on `conversation.start(...)` is an advanced option.
+
 Resume pattern in React (typical):
 
 ```tsx
