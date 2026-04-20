@@ -72,8 +72,6 @@ export function Chat() {
 }
 ```
 
-## API
-
 ## API Contract Reference
 
 `@amarsia/react` is a thin hook layer over SDK controller contracts.
@@ -175,6 +173,7 @@ await conversation.run({
 });
 
 await conversation.loadMessages(); // first page with API defaults
+await conversation.loadMessages({ conversationId: "conv_existing_123" }); // fetch by explicit id
 await conversation.loadMessages({ page: 2, pageSize: 20, append: true }); // append + dedupe by message id
 
 await conversation.list({
@@ -205,9 +204,23 @@ conversation.stream({
   meta?: Record<string, string | number | boolean>; // fresh-conversation only
 }): Promise<ConversationData>;
 
-conversation.loadMessages({ page?, pageSize?, append? }): Promise<ConversationMessage[]>;
+conversation.loadMessages({ conversationId?, page?, pageSize?, append? }): Promise<ConversationMessage[]>;
 conversation.list({ page?, pageSize?, meta? }): Promise<Array<Record<string, unknown>>>;
 conversation.abort(): void;
+```
+
+Resume pattern in React (typical):
+
+```tsx
+import { useEffect } from "react";
+import { useConversation } from "@amarsia/react";
+
+const { conversation } = useConversation(client);
+
+useEffect(() => {
+  const storedConversationId = "conv_abc123"; // read from route/session/db
+  if (storedConversationId) conversation.start(storedConversationId);
+}, [conversation]);
 ```
 
 ### `useAmarsia(client)`
