@@ -1,5 +1,13 @@
 # @amarsia/react
 
+## 1.2.2
+
+### Patch Changes
+
+- cb6f929: Update conversation list endpoint to include deployment_id in SDK
+- Updated dependencies [cb6f929]
+  - @amarsia/sdk@1.2.2
+
 ## 1.2.1
 
 ### Patch Changes
