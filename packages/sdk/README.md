@@ -394,6 +394,8 @@ conversation.loadMessages({ conversationId?, page?, pageSize?, append? });
 conversation.list({ page?, pageSize?, meta? });
 ```
 
+`conversation.list(...)` resolves deployment from conversation context (or client init config) and calls `/v1/runner/{deployment_id}/conversations`.
+
 See full examples and endpoint docs at [docs.amarsia.com](https://docs.amarsia.com).
 
 ## Error handling

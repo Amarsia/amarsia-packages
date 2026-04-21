@@ -480,6 +480,8 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
     async list(input) {
       try {
         const request: ListConversationsRequest = {};
+        const deploymentId = conversationStore.getState().deploymentId;
+        if (deploymentId !== null) request.deploymentId = deploymentId;
         if (input?.page !== undefined) request.page = input.page;
         if (input?.pageSize !== undefined) request.pageSize = input.pageSize;
         if (input?.meta !== undefined) request.meta = input.meta;
