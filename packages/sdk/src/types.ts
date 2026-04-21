@@ -125,6 +125,7 @@ export type ConversationData = {
 };
 
 export type ListConversationsRequest = {
+  deploymentId?: string;
   page?: number;
   pageSize?: number;
   meta?: Record<string, string>;

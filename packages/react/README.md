@@ -209,6 +209,8 @@ conversation.list({ page?, pageSize?, meta? }): Promise<Array<Record<string, unk
 conversation.abort(): void;
 ```
 
+`conversation.list(...)` uses the active conversation/client deployment context and maps to `/v1/runner/{deployment_id}/conversations` in the core SDK.
+
 Note:
 - Most apps should switch deployments by creating a new SDK client (`amarsia.init({ deploymentId: "dep_..." })`) instead of passing `deploymentId` to `conversation.start(...)`.
 - The second `deploymentId` argument on `conversation.start(...)` is an advanced option.

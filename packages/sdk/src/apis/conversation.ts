@@ -137,6 +137,7 @@ export async function listConversations(
   client: HttpClient,
   input: ListConversationsRequest
 ): Promise<{ data: PaginatedConversationsResponse; raw: unknown }> {
+  const deploymentId = resolveDeploymentId(client.deploymentId, input.deploymentId);
   const query: Record<string, string | number | boolean | undefined> = {
     page: input.page ?? 1,
     page_size: input.pageSize ?? 20
@@ -150,7 +151,7 @@ export async function listConversations(
 
   return requestJson<PaginatedConversationsResponse>(client, {
     method: "GET",
-    path: "/v1/runner/conversations",
+    path: `/v1/runner/${deploymentId}/conversations`,
     query
   });
 }
