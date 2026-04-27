@@ -1,5 +1,11 @@
 # @amarsia/sdk
 
+## 1.2.3
+
+### Patch Changes
+
+- fcf3df7: fix: bind globalThis.fetch when used as the default to prevent "Illegal invocation" in browsers
+
 ## 1.2.2
 
 ### Patch Changes
