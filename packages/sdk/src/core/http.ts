@@ -22,10 +22,17 @@ let hasWarnedBrowserApiKey = false;
 export function createHttpClient(config: InitConfig): HttpClientConfig {
   const apiKey = config.apiKey?.trim();
 
-  const fetchImpl = config.fetch ?? globalThis.fetch;
-  if (typeof fetchImpl !== "function") {
+  const rawFetch = config.fetch ?? (typeof globalThis !== "undefined" ? globalThis.fetch : undefined);
+  if (typeof rawFetch !== "function") {
     throw createConfigError("No fetch implementation available. Provide `fetch` in amarsia.init(...) for this runtime.");
   }
+
+  // Bind to globalThis when using the platform fetch so that `this` is not lost
+  // when the function is stored as a property on the client (e.g. browsers
+  // throw "Illegal invocation" if `window.fetch` is called with a different `this`).
+  const fetchImpl: typeof globalThis.fetch = config.fetch
+    ? config.fetch
+    : (rawFetch as typeof globalThis.fetch).bind(globalThis);
 
   const baseUrl = normalizeBaseUrl(config.baseUrl ?? "https://api.amarsia.com");
   if (apiKey) {
