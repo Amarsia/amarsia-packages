@@ -205,11 +205,12 @@ conversation.stream({
 }): Promise<ConversationData>;
 
 conversation.loadMessages({ conversationId?, page?, pageSize?, append? }): Promise<ConversationMessage[]>;
-conversation.list({ page?, pageSize?, meta? }): Promise<Array<Record<string, unknown>>>;
+conversation.list({ page?, pageSize?, meta? }): Promise<ChatConversation[]>;
 conversation.abort(): void;
 ```
 
 `conversation.list(...)` uses the active conversation/client deployment context and maps to `/v1/runner/{deployment_id}/conversations` in the core SDK.
+The list and message-history endpoint responses use `items`; the SDK returns those item arrays and stores them in `conversation.conversations` or `conversation.messages`.
 
 Note:
 - Most apps should switch deployments by creating a new SDK client (`amarsia.init({ deploymentId: "dep_..." })`) instead of passing `deploymentId` to `conversation.start(...)`.

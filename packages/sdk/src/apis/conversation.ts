@@ -5,11 +5,11 @@ import { createConfigError } from "../errors";
 import type { HttpClient } from "../core/http";
 import type {
   ConversationData,
+  ConversationListResponse,
+  ConversationMessagesResponse,
   ConversationSendRequest,
   ListConversationsRequest,
-  LoadMessagesRequest,
-  PaginatedConversationsResponse,
-  PaginatedMessagesResponse
+  LoadMessagesRequest
 } from "../types";
 
 export async function createConversation(
@@ -117,13 +117,13 @@ export async function continueConversation(
 export async function getConversationMessages(
   client: HttpClient,
   input: LoadMessagesRequest
-): Promise<{ data: PaginatedMessagesResponse; raw: unknown }> {
+): Promise<{ data: ConversationMessagesResponse; raw: unknown }> {
   const conversationId = input.conversationId;
   if (!conversationId) {
     throw createConfigError("conversationId is required to fetch messages.");
   }
 
-  return requestJson<PaginatedMessagesResponse>(client, {
+  return requestJson<ConversationMessagesResponse>(client, {
     method: "GET",
     path: `/v1/runner/conversation/${conversationId}/messages`,
     query: {
@@ -136,7 +136,7 @@ export async function getConversationMessages(
 export async function listConversations(
   client: HttpClient,
   input: ListConversationsRequest
-): Promise<{ data: PaginatedConversationsResponse; raw: unknown }> {
+): Promise<{ data: ConversationListResponse; raw: unknown }> {
   const deploymentId = resolveDeploymentId(client.deploymentId, input.deploymentId);
   const query: Record<string, string | number | boolean | undefined> = {
     page: input.page ?? 1,
@@ -149,7 +149,7 @@ export async function listConversations(
     }
   }
 
-  return requestJson<PaginatedConversationsResponse>(client, {
+  return requestJson<ConversationListResponse>(client, {
     method: "GET",
     path: `/v1/runner/${deploymentId}/conversations`,
     query

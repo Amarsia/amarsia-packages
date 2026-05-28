@@ -382,7 +382,7 @@ Conversation behavior contract:
   raw: unknown;
   messages: ConversationMessage[];
   messagesPageInfo: { page: number; page_size: number; total: number; has_more: boolean } | null;
-  conversations: Array<Record<string, unknown>>;
+  conversations: ChatConversation[];
   conversationsPageInfo: { page: number; page_size: number; total: number; has_more: boolean } | null;
 }
 ```
@@ -390,11 +390,37 @@ Conversation behavior contract:
 ### History/query helpers
 
 ```ts
+interface ChatConversation {
+  id: string;
+  name?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  message_count?: number;
+  meta?: Record<string, unknown>;
+}
+
+interface ConversationListResponse {
+  items: ChatConversation[];
+  total: number;
+  page: number;
+  page_size: number;
+  has_more: boolean;
+}
+
+interface ConversationMessagesResponse {
+  items: ConversationMessage[];
+  total: number;
+  page: number;
+  page_size: number;
+  has_more: boolean;
+}
+
 conversation.loadMessages({ conversationId?, page?, pageSize?, append? });
-conversation.list({ page?, pageSize?, meta? });
+conversation.list({ page?, pageSize?, meta? }): Promise<ChatConversation[]>;
 ```
 
 `conversation.list(...)` resolves deployment from conversation context (or client init config) and calls `/v1/runner/{deployment_id}/conversations`.
+The list and message-history endpoint responses use `items`; the SDK returns those item arrays and stores them in `conversation.conversations` or `conversation.messages`.
 
 See full examples and endpoint docs at [docs.amarsia.com](https://docs.amarsia.com).
 

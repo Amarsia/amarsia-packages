@@ -124,6 +124,15 @@ export type ConversationData = {
   [key: string]: unknown;
 };
 
+export interface ChatConversation {
+  id: string;
+  name?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  message_count?: number;
+  meta?: Record<string, unknown>;
+}
+
 export type ListConversationsRequest = {
   deploymentId?: string;
   page?: number;
@@ -144,23 +153,21 @@ export type ConversationLoadMessagesOptions = {
   append?: boolean;
 };
 
-export type PaginatedConversationsResponse = {
-  conversations: Array<Record<string, unknown>>;
+export interface ConversationListResponse {
+  items: ChatConversation[];
   page: number;
   page_size: number;
   total: number;
   has_more: boolean;
-  [key: string]: unknown;
-};
+}
 
-export type PaginatedMessagesResponse = {
-  messages: ConversationMessage[];
+export interface ConversationMessagesResponse {
+  items: ConversationMessage[];
   page: number;
   page_size: number;
   total: number;
   has_more: boolean;
-  [key: string]: unknown;
-};
+}
 
 export type StatefulResult<TData> = {
   status: AmarsiaStatus;
@@ -187,7 +194,7 @@ export type ConversationState = StatefulResult<ConversationData> & {
     total: number;
     has_more: boolean;
   } | null;
-  conversations: Array<Record<string, unknown>>;
+  conversations: ChatConversation[];
 };
 
 export type InitConfig = {

@@ -446,9 +446,9 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
         if (input?.pageSize !== undefined) request.pageSize = input.pageSize;
 
         const response = await getConversationMessages(httpClient, request);
-        let nextMessages = response.data.messages;
+        let nextMessages = response.data.items;
         if (input?.append) {
-          const merged = [...conversationStore.getState().messages, ...response.data.messages];
+          const merged = [...conversationStore.getState().messages, ...response.data.items];
           const dedupedById = new Map<string, (typeof merged)[number]>();
           for (const message of merged) {
             dedupedById.set(message.id, message);
@@ -489,7 +489,7 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
         const response = await listConversations(httpClient, request);
         conversationStore.setState((previous) => ({
           ...previous,
-          conversations: response.data.conversations,
+          conversations: response.data.items,
           conversationsPageInfo: {
             page: response.data.page,
             page_size: response.data.page_size,
@@ -497,7 +497,7 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
             has_more: response.data.has_more
           }
         }));
-        return response.data.conversations;
+        return response.data.items;
       } catch (error) {
         const wrapped = wrapUnknownError(error);
         conversationStore.setState((previous) => ({
