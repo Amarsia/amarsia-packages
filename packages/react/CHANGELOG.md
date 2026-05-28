@@ -1,5 +1,13 @@
 # @amarsia/react
 
+## 1.2.4
+
+### Patch Changes
+
+- db7e402: fix: list conversations and messages
+- Updated dependencies [db7e402]
+  - @amarsia/sdk@1.2.4
+
 ## 1.2.3
 
 ### Patch Changes
