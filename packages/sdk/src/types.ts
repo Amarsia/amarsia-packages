@@ -1,4 +1,10 @@
-export type AmarsiaStatus = "idle" | "loading" | "streaming" | "success" | "error";
+export type AmarsiaStatus =
+  | "idle"
+  | "loading"
+  | "streaming"
+  | "awaiting_input"
+  | "success"
+  | "error";
 
 export type MessageRole = "user" | "assistant" | "system" | "tool";
 
@@ -100,7 +106,24 @@ export type ConversationSendRequest = {
   meta?: Record<string, string | number | boolean>;
   historyLimit?: number;
   signal?: AbortSignal;
+  clientCapabilities?: string[];
 };
+
+export type ClientToolCall = {
+  call_id: string;
+  name: string;
+  arguments: Record<string, unknown>;
+};
+
+export type ClientToolResult = {
+  call_id: string;
+  output: Record<string, unknown>;
+};
+
+export type ClientToolHandler = (
+  arguments_: Record<string, unknown>,
+  call: ClientToolCall
+) => Promise<Record<string, unknown>> | Record<string, unknown>;
 
 export type ConversationRunOptions = {
   content: MessageContent[];
@@ -108,13 +131,17 @@ export type ConversationRunOptions = {
   signal?: AbortSignal;
   variables?: Record<string, unknown>;
   meta?: Record<string, string | number | boolean>;
+  clientTools?: Record<string, ClientToolHandler>;
 };
 
 export type ConversationStreamOptions = ConversationRunOptions;
 
 export type ConversationData = {
   conversation_id: string;
-  content: string | Record<string, unknown>;
+  status?: "completed" | "requires_client_action";
+  content?: string | Record<string, unknown>;
+  run_id?: string;
+  client_tool_calls?: ClientToolCall[];
   name?: string;
   model?: string;
   input_tokens?: number;
@@ -195,6 +222,7 @@ export type ConversationState = StatefulResult<ConversationData> & {
     has_more: boolean;
   } | null;
   conversations: ChatConversation[];
+  pendingToolCalls: ClientToolCall[];
 };
 
 export type InitConfig = {

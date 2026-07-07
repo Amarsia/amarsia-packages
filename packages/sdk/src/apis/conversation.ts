@@ -8,6 +8,7 @@ import type {
   ConversationListResponse,
   ConversationMessagesResponse,
   ConversationSendRequest,
+  ClientToolResult,
   ListConversationsRequest,
   LoadMessagesRequest
 } from "../types";
@@ -110,6 +111,72 @@ export async function continueConversation(
     history_limit?: number;
   };
   setIfDefined(body, "history_limit", input.historyLimit);
+
+  return requestJson<ConversationData>(client, requestOptions);
+}
+
+export async function runConversationV2(
+  client: HttpClient,
+  input: ConversationSendRequest,
+  conversationId?: string
+): Promise<{ data: ConversationData; raw: unknown }> {
+  const deploymentId = resolveDeploymentId(client.deploymentId, input.deploymentId);
+  const requestOptions: Parameters<typeof requestJson<ConversationData>>[1] = {
+    method: "POST",
+    path: `/v2/runner/${deploymentId}/conversation`,
+    body: {
+      content: input.content
+    }
+  };
+
+  setIfDefined(requestOptions, "signal", input.signal);
+
+  const body = requestOptions.body as {
+    content: ConversationSendRequest["content"];
+    conversation_id?: string;
+    variables?: ConversationSendRequest["variables"];
+    meta?: ConversationSendRequest["meta"];
+    history_limit?: number;
+    client_capabilities?: string[];
+  };
+  setIfDefined(body, "conversation_id", conversationId);
+  setIfDefined(body, "variables", input.variables);
+  setIfDefined(body, "meta", input.meta);
+  setIfDefined(body, "history_limit", input.historyLimit);
+  setIfDefined(body, "client_capabilities", input.clientCapabilities);
+
+  return requestJson<ConversationData>(client, requestOptions);
+}
+
+export async function resumeConversationV2(
+  client: HttpClient,
+  input: ConversationSendRequest,
+  conversationId: string,
+  runId: string,
+  toolResults: ClientToolResult[]
+): Promise<{ data: ConversationData; raw: unknown }> {
+  const deploymentId = resolveDeploymentId(client.deploymentId, input.deploymentId);
+  const requestOptions: Parameters<typeof requestJson<ConversationData>>[1] = {
+    method: "POST",
+    path: `/v2/runner/${deploymentId}/conversation`,
+    body: {
+      conversation_id: conversationId,
+      run_id: runId,
+      tool_results: toolResults
+    }
+  };
+
+  setIfDefined(requestOptions, "signal", input.signal);
+
+  const body = requestOptions.body as {
+    conversation_id: string;
+    run_id: string;
+    tool_results: ClientToolResult[];
+    history_limit?: number;
+    client_capabilities?: string[];
+  };
+  setIfDefined(body, "history_limit", input.historyLimit);
+  setIfDefined(body, "client_capabilities", input.clientCapabilities);
 
   return requestJson<ConversationData>(client, requestOptions);
 }

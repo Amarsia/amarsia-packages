@@ -3,7 +3,9 @@ import {
   continueConversationStream,
   createConversation,
   getConversationMessages,
-  listConversations
+  listConversations,
+  resumeConversationV2,
+  runConversationV2
 } from "./apis/conversation";
 import { runRequest } from "./apis/run";
 import { streamRequest } from "./apis/stream";
@@ -13,6 +15,7 @@ import { createStore } from "./core/store";
 import { createConfigError, createValidationError, toErrorData, wrapUnknownError } from "./errors";
 import type {
   AmarsiaSdkErrorData,
+  ClientToolResult,
   ConversationData,
   ConversationLoadMessagesOptions,
   ConversationRunOptions,
@@ -63,6 +66,7 @@ export type ConversationController = {
   readonly messagesPageInfo: ConversationState["messagesPageInfo"];
   readonly conversations: ConversationState["conversations"];
   readonly conversationsPageInfo: ConversationState["conversationsPageInfo"];
+  readonly pendingToolCalls: ConversationState["pendingToolCalls"];
   getState: () => Readonly<ConversationState>;
   subscribe: (listener: Subscription<ConversationState>) => () => void;
   run: (options: ConversationRunOptions) => Promise<ConversationData>;
@@ -91,7 +95,8 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
     messages: [],
     messagesPageInfo: null,
     conversations: [],
-    conversationsPageInfo: null
+    conversationsPageInfo: null,
+    pendingToolCalls: []
   });
 
   let streamAbortController: AbortController | null = null;
@@ -228,6 +233,9 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
     get conversationsPageInfo() {
       return conversationStore.getState().conversationsPageInfo;
     },
+    get pendingToolCalls() {
+      return conversationStore.getState().pendingToolCalls;
+    },
     getState() {
       return conversationStore.getState();
     },
@@ -248,7 +256,8 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
         messages: [],
         messagesPageInfo: null,
         conversations: previous.conversations,
-        conversationsPageInfo: previous.conversationsPageInfo
+        conversationsPageInfo: previous.conversationsPageInfo,
+        pendingToolCalls: []
       }));
     },
     abort() {
@@ -266,7 +275,8 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
         status: "loading",
         error: null,
         live: "",
-        data: null
+        data: null,
+        pendingToolCalls: []
       }));
 
       try {
@@ -281,12 +291,94 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
           variables?: Record<string, unknown>;
           meta?: Record<string, string | number | boolean>;
           historyLimit?: number;
+          clientCapabilities?: string[];
         };
 
         setIfDefined(request, "deploymentId", currentState.deploymentId ?? undefined);
         setIfDefined(request, "historyLimit", options.historyLimit);
 
         const activeConversationId = currentState.id;
+        if (options.clientTools && Object.keys(options.clientTools).length > 0) {
+          if (activeConversationId && (options.variables !== undefined || options.meta !== undefined)) {
+            throw createValidationError(
+              "`variables` and `meta` are only supported when starting a new conversation (no active conversation id)."
+            );
+          }
+
+          setIfDefined(request, "variables", activeConversationId ? undefined : options.variables);
+          setIfDefined(request, "meta", activeConversationId ? undefined : options.meta);
+          request.clientCapabilities = Object.keys(options.clientTools);
+
+          let response = await runConversationV2(httpClient, request, activeConversationId ?? undefined);
+          let conversationId = response.data.conversation_id;
+
+          while (response.data.status === "requires_client_action") {
+            const calls = response.data.client_tool_calls ?? [];
+            const runId = response.data.run_id;
+            if (!runId) {
+              throw createValidationError("Client tool response is missing `run_id`.");
+            }
+
+            conversationStore.setState((previous) => ({
+              ...previous,
+              status: "awaiting_input",
+              id: conversationId,
+              data: response.data,
+              raw: response.raw,
+              meta: extractUsageMeta(response.data),
+              pendingToolCalls: calls
+            }));
+
+            const toolResults: ClientToolResult[] = [];
+            for (const call of calls) {
+              const handler = options.clientTools[call.name];
+              if (!handler) {
+                throw createConfigError(
+                  `Conversation requested client tool "${call.name}", but no handler was provided.`
+                );
+              }
+              try {
+                const output = await handler(call.arguments, call);
+                toolResults.push({ call_id: call.call_id, output });
+              } catch (error) {
+                toolResults.push({
+                  call_id: call.call_id,
+                  output: {
+                    error: error instanceof Error ? error.message : String(error)
+                  }
+                });
+              }
+            }
+
+            conversationStore.setState((previous) => ({
+              ...previous,
+              status: "loading",
+              pendingToolCalls: []
+            }));
+            response = await resumeConversationV2(
+              httpClient,
+              request,
+              conversationId,
+              runId,
+              toolResults
+            );
+            conversationId = response.data.conversation_id;
+          }
+
+          const meta = extractUsageMeta(response.data);
+          conversationStore.setState((previous) => ({
+            ...previous,
+            status: "success",
+            id: conversationId,
+            data: response.data,
+            raw: response.raw,
+            meta,
+            live: "",
+            pendingToolCalls: []
+          }));
+          return response.data;
+        }
+
         if (!activeConversationId) {
           setIfDefined(request, "variables", options.variables);
           setIfDefined(request, "meta", options.meta);
@@ -349,7 +441,8 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
         status: previous.id ? "streaming" : "loading",
         error: null,
         live: "",
-        data: null
+        data: null,
+        pendingToolCalls: []
       }));
 
       try {
