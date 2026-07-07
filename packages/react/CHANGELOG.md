@@ -1,5 +1,16 @@
 # @amarsia/react
 
+## 1.3.0
+
+### Minor Changes
+
+- 500a346: Add conversation client tools with pause/resume support for ask_user workflows.
+
+### Patch Changes
+
+- Updated dependencies [500a346]
+  - @amarsia/sdk@1.3.0
+
 ## 1.2.4
 
 ### Patch Changes
