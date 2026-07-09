@@ -1,5 +1,11 @@
 import { createAmarsiaClient } from "./client";
-import type { AmarsiaClient, ConversationController, RunController, StreamController } from "./client";
+import type {
+  AmarsiaClient,
+  ConversationController,
+  RunController,
+  StreamController,
+  TriggerController
+} from "./client";
 import { AmarsiaSdkError } from "./errors";
 import type {
   AmarsiaSdkErrorData,
@@ -13,6 +19,7 @@ import type {
   ConversationSendRequest,
   ConversationStreamOptions,
   ConversationState,
+  CreateTriggerRequest,
   InitConfig,
   ListConversationsRequest,
   LoadMessagesRequest,
@@ -25,6 +32,7 @@ import type {
   StatefulResult,
   StreamRequest,
   StreamResponse,
+  TriggerData,
   UsageMetadata
 } from "./types";
 
@@ -33,7 +41,13 @@ export const amarsia = {
 };
 
 export { createAmarsiaClient, AmarsiaSdkError };
-export type { AmarsiaClient, ConversationController, RunController, StreamController };
+export type {
+  AmarsiaClient,
+  ConversationController,
+  RunController,
+  StreamController,
+  TriggerController
+};
 export type {
   AmarsiaSdkErrorData,
   AmarsiaStatus,
@@ -46,6 +60,7 @@ export type {
   ConversationSendRequest,
   ConversationStreamOptions,
   ConversationState,
+  CreateTriggerRequest,
   InitConfig,
   ListConversationsRequest,
   LoadMessagesRequest,
@@ -58,5 +73,6 @@ export type {
   StatefulResult,
   StreamRequest,
   StreamResponse,
+  TriggerData,
   UsageMetadata
 };

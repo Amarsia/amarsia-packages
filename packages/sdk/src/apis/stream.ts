@@ -25,8 +25,13 @@ export async function streamRequest(
 
   setIfDefined(requestOptions, "signal", input.signal);
 
-  const body = requestOptions.body as { content: StreamRequest["content"]; variables?: StreamRequest["variables"] };
+  const body = requestOptions.body as {
+    content: StreamRequest["content"];
+    variables?: StreamRequest["variables"];
+    trigger_id?: string;
+  };
   setIfDefined(body, "variables", input.variables);
+  setIfDefined(body, "trigger_id", input.triggerId);
 
   const response = await requestStream(client, requestOptions);
 

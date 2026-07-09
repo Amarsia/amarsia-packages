@@ -33,10 +33,12 @@ export async function createConversation(
     content: ConversationSendRequest["content"];
     variables?: ConversationSendRequest["variables"];
     meta?: ConversationSendRequest["meta"];
+    trigger_id?: string;
   };
 
   setIfDefined(body, "variables", input.variables);
   setIfDefined(body, "meta", input.meta);
+  setIfDefined(body, "trigger_id", input.triggerId);
 
   return requestJson<ConversationData>(client, requestOptions);
 }
@@ -138,12 +140,14 @@ export async function runConversationV2(
     meta?: ConversationSendRequest["meta"];
     history_limit?: number;
     client_capabilities?: string[];
+    trigger_id?: string;
   };
   setIfDefined(body, "conversation_id", conversationId);
   setIfDefined(body, "variables", input.variables);
   setIfDefined(body, "meta", input.meta);
   setIfDefined(body, "history_limit", input.historyLimit);
   setIfDefined(body, "client_capabilities", input.clientCapabilities);
+  setIfDefined(body, "trigger_id", input.triggerId);
 
   return requestJson<ConversationData>(client, requestOptions);
 }

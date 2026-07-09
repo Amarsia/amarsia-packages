@@ -74,6 +74,7 @@ export type RunRequest = {
   deploymentId?: string;
   content: MessageContent[];
   variables?: Record<string, unknown>;
+  triggerId?: string;
 };
 
 export type RunResponse = {
@@ -88,6 +89,7 @@ export type StreamRequest = {
   deploymentId?: string;
   content: MessageContent[];
   variables?: Record<string, unknown>;
+  triggerId?: string;
   signal?: AbortSignal;
 };
 
@@ -107,6 +109,7 @@ export type ConversationSendRequest = {
   historyLimit?: number;
   signal?: AbortSignal;
   clientCapabilities?: string[];
+  triggerId?: string;
 };
 
 export type ClientToolCall = {
@@ -132,6 +135,30 @@ export type ConversationRunOptions = {
   variables?: Record<string, unknown>;
   meta?: Record<string, string | number | boolean>;
   clientTools?: Record<string, ClientToolHandler>;
+  triggerId?: string;
+};
+
+export type CreateTriggerRequest = {
+  deploymentId?: string;
+  content: MessageContent[];
+  variables?: Record<string, unknown>;
+  uiSurface?: string;
+  /** Hours until expiry. Pass `null` for no expiry. Default on server is 24. */
+  ttlHours?: number | null;
+};
+
+export type TriggerData = {
+  id: string;
+  deployment_id: string;
+  workflow_id: number;
+  ui_surface?: string | null;
+  content: MessageContent[];
+  variables?: Record<string, unknown> | null;
+  conversation_id?: string | null;
+  workflow_log_id?: number | null;
+  created_at: string;
+  expires_at?: string | null;
+  expired: boolean;
 };
 
 export type ConversationStreamOptions = ConversationRunOptions;

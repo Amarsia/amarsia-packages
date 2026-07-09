@@ -9,6 +9,7 @@ import {
 } from "./apis/conversation";
 import { runRequest } from "./apis/run";
 import { streamRequest } from "./apis/stream";
+import { createTrigger, getTrigger } from "./apis/trigger";
 import { createHttpClient } from "./core/http";
 import { setIfDefined } from "./core/object";
 import { createStore } from "./core/store";
@@ -17,6 +18,8 @@ import type {
   AmarsiaSdkErrorData,
   ClientToolResult,
   ConversationData,
+  CreateTriggerRequest,
+  TriggerData,
   ConversationLoadMessagesOptions,
   ConversationRunOptions,
   ConversationStreamOptions,
@@ -77,10 +80,16 @@ export type ConversationController = {
   abort: () => void;
 };
 
+export type TriggerController = {
+  create: (input: CreateTriggerRequest) => Promise<TriggerData>;
+  get: (input: { deploymentId?: string; triggerId: string }) => Promise<TriggerData>;
+};
+
 export type AmarsiaClient = {
   run: RunController;
   stream: StreamController;
   conversation: ConversationController;
+  trigger: TriggerController;
 };
 
 export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
@@ -292,6 +301,7 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
           meta?: Record<string, string | number | boolean>;
           historyLimit?: number;
           clientCapabilities?: string[];
+          triggerId?: string;
         };
 
         setIfDefined(request, "deploymentId", currentState.deploymentId ?? undefined);
@@ -299,14 +309,15 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
 
         const activeConversationId = currentState.id;
         if (options.clientTools && Object.keys(options.clientTools).length > 0) {
-          if (activeConversationId && (options.variables !== undefined || options.meta !== undefined)) {
+          if (activeConversationId && (options.variables !== undefined || options.meta !== undefined || options.triggerId !== undefined)) {
             throw createValidationError(
-              "`variables` and `meta` are only supported when starting a new conversation (no active conversation id)."
+              "`variables`, `meta`, and `triggerId` are only supported when starting a new conversation (no active conversation id)."
             );
           }
 
           setIfDefined(request, "variables", activeConversationId ? undefined : options.variables);
           setIfDefined(request, "meta", activeConversationId ? undefined : options.meta);
+          setIfDefined(request, "triggerId", activeConversationId ? undefined : options.triggerId);
           request.clientCapabilities = Object.keys(options.clientTools);
 
           let response = await runConversationV2(httpClient, request, activeConversationId ?? undefined);
@@ -382,6 +393,7 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
         if (!activeConversationId) {
           setIfDefined(request, "variables", options.variables);
           setIfDefined(request, "meta", options.meta);
+          setIfDefined(request, "triggerId", options.triggerId);
 
           const created = await createConversation(httpClient, request);
 
@@ -399,9 +411,9 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
           return created.data;
         }
 
-        if (options.variables !== undefined || options.meta !== undefined) {
+        if (options.variables !== undefined || options.meta !== undefined || options.triggerId !== undefined) {
           throw createValidationError(
-            "`variables` and `meta` are only supported when starting a new conversation (no active conversation id)."
+            "`variables`, `meta`, and `triggerId` are only supported when starting a new conversation (no active conversation id)."
           );
         }
 
@@ -457,6 +469,7 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
           variables?: Record<string, unknown>;
           meta?: Record<string, string | number | boolean>;
           historyLimit?: number;
+          triggerId?: string;
         };
 
         setIfDefined(request, "deploymentId", currentState.deploymentId ?? undefined);
@@ -466,6 +479,7 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
         if (!activeConversationId) {
           setIfDefined(request, "variables", options.variables);
           setIfDefined(request, "meta", options.meta);
+          setIfDefined(request, "triggerId", options.triggerId);
 
           const created = await createConversation(httpClient, request);
           const conversationId = created.data.conversation_id;
@@ -482,9 +496,9 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
           return created.data;
         }
 
-        if (options.variables !== undefined || options.meta !== undefined) {
+        if (options.variables !== undefined || options.meta !== undefined || options.triggerId !== undefined) {
           throw createValidationError(
-            "`variables` and `meta` are only supported when starting a new conversation (no active conversation id)."
+            "`variables`, `meta`, and `triggerId` are only supported when starting a new conversation (no active conversation id)."
           );
         }
 
@@ -603,10 +617,22 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
     }
   };
 
+  const trigger: TriggerController = {
+    create: async (input) => {
+      const response = await createTrigger(httpClient, input);
+      return response.data;
+    },
+    get: async (input) => {
+      const response = await getTrigger(httpClient, input);
+      return response.data;
+    }
+  };
+
   return {
     run,
     stream,
-    conversation
+    conversation,
+    trigger
   };
 }
 
