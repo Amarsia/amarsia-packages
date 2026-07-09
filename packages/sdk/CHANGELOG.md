@@ -1,5 +1,11 @@
 # @amarsia/sdk
 
+## 1.4.0
+
+### Minor Changes
+
+- 4c3c092: Assistant trigger API (client.trigger.create / client.trigger.get) + optional triggerId on run, stream, and conversation
+
 ## 1.3.0
 
 ### Minor Changes
