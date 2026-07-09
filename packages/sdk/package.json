@@ -1,6 +1,6 @@
 {
   "name": "@amarsia/sdk",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "The official JavaScript and TypeScript SDK for Amarsia — run, stream, and manage AI assistants.",
   "license": "MIT",
   "author": "Amarsia",

@@ -1,6 +1,6 @@
 {
   "name": "@amarsia/react",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "The official React and Next.js SDK wrapper for Amarsia — build AI assistants with stateful hooks.",
   "license": "MIT",
   "author": "Amarsia",
@@ -57,7 +57,7 @@
     "lint:fix": "eslint src --fix"
   },
   "dependencies": {
-    "@amarsia/sdk": "^1.3.0"
+    "@amarsia/sdk": "^1.4.0"
   },
   "peerDependencies": {
     "react": ">=18",
