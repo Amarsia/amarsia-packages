@@ -21,6 +21,7 @@ import type {
   AgentPendingToolCall,
   AgentStartOptions,
   AgentState,
+  AgentToolSummary,
   ClientCapability,
   ClientToolCall,
   ClientToolResult,
@@ -117,9 +118,7 @@ export function createAgentController(client: HttpClient): AgentController {
     const pendingToolCalls = normalizeToolCalls(response.pending_client_actions ?? []);
     const history = options?.history ?? response.items;
     const messages = options?.messages ?? messagesFromHistory(history);
-    const toolSummary = history
-      .filter((item) => ["tool", "action", "client_tool"].includes(item.type) && item.name)
-      .map((item) => ({ name: item.name, status: item.status, type: item.type }));
+    const toolSummary = toolSummariesFromHistory(history);
     store.setState((previous) => ({
       ...previous,
       conversationStatus,
@@ -666,9 +665,7 @@ function stateFromHistory(
       hasMore: Boolean(response.next_cursor)
     },
     progress: [],
-    toolSummary: history
-      .filter((item) => ["tool", "action", "client_tool"].includes(item.type) && item.name)
-      .map((item) => ({ name: item.name, status: item.status, type: item.type })),
+    toolSummary: toolSummariesFromHistory(history),
     pendingToolCalls,
     status: statusFromLifecycle(
       conversationStatus,
@@ -697,6 +694,27 @@ function messagesFromHistory(history: AgentHistoryItem[]): AgentState["messages"
 function compareHistoryItems(a: AgentHistoryItem, b: AgentHistoryItem): number {
   const timeDifference = Date.parse(a.created_at) - Date.parse(b.created_at);
   return timeDifference || a.id.localeCompare(b.id);
+}
+
+function toolSummariesFromHistory(
+  history: AgentHistoryItem[]
+): AgentToolSummary[] {
+  return history.flatMap((item) => {
+    if (
+      !["tool", "action", "client_tool"].includes(item.type) ||
+      typeof item.name !== "string" ||
+      !item.name
+    ) {
+      return [];
+    }
+    return [
+      {
+        name: item.name,
+        type: item.type,
+        ...(typeof item.status === "string" ? { status: item.status } : {})
+      }
+    ];
+  });
 }
 
 function pruneResolvedOutputs(
