@@ -1,5 +1,11 @@
 # @amarsia/sdk
 
+## 1.5.1
+
+### Patch Changes
+
+- e7c8163: updated agent polling, Polls only while local state is loading/running or backend runStatus === "running".
+
 ## 1.5.0
 
 ### Minor Changes
