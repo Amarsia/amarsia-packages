@@ -22,6 +22,7 @@ Any behavior changes in `@amarsia/sdk` automatically flow through here.
 - one-shot AI calls (`useRun`)
 - streaming AI output (`useStream`)
 - stateful multi-turn chat (`useConversation`)
+- durable agent timelines (`useAgent`)
 
 This is useful for chat UIs, copilots, AI forms, and agentic app experiences.
 
@@ -85,7 +86,8 @@ const client = amarsia.init(...);
 useRun(client);          // uses client.run
 useStream(client);       // uses client.stream
 useConversation(client); // uses client.conversation
-useAmarsia(client);      // all three
+useAgent(client);        // uses client.agent
+useAmarsia(client);      // all four
 ```
 
 ### Shared hook state contract
@@ -230,14 +232,43 @@ useEffect(() => {
 }, [conversation]);
 ```
 
+### `useAgent(client)`
+
+Subscribes to the durable agent controller while keeping its methods available:
+
+```tsx
+import { useAgent } from "@amarsia/react";
+
+const {
+  history,
+  historyPageInfo,
+  messages,
+  pendingToolCalls,
+  status,
+  agent
+} = useAgent(client);
+
+await agent.resolveTool(pendingToolCalls[0].callId, { approved: true });
+
+if (historyPageInfo?.hasMore) {
+  await agent.loadMoreHistory();
+}
+```
+
+Use `agent.get(conversationId)` for a one-time server snapshot. Use
+`agent.open(conversationId)` when the component should remain synchronized;
+the hook rerenders through `subscribe()` as the controller state changes.
+Render `history` for the ordered message/tool/action timeline; `messages` is
+the derived message-only view.
+
 ### `useAmarsia(client)`
 
-Convenience hook that returns all three:
+Convenience hook that returns all four:
 
 ```tsx
 import { useAmarsia } from "@amarsia/react";
 
-const { run, stream, conversation } = useAmarsia(client);
+const { run, stream, conversation, agent } = useAmarsia(client);
 ```
 
 Return contract:
@@ -247,6 +278,7 @@ Return contract:
   run: ReturnType<typeof useRun>;
   stream: ReturnType<typeof useStream>;
   conversation: ReturnType<typeof useConversation>;
+  agent: ReturnType<typeof useAgent>;
 }
 ```
 

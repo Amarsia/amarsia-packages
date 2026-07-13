@@ -10,6 +10,9 @@ import {
 import { runRequest } from "./apis/run";
 import { streamRequest } from "./apis/stream";
 import { createTrigger, getTrigger } from "./apis/trigger";
+import { createAgentController } from "./apis/agent";
+import type { AgentController } from "./apis/agent";
+export type { AgentController } from "./apis/agent";
 import { createHttpClient } from "./core/http";
 import { setIfDefined } from "./core/object";
 import { createStore } from "./core/store";
@@ -89,11 +92,13 @@ export type AmarsiaClient = {
   run: RunController;
   stream: StreamController;
   conversation: ConversationController;
+  agent: AgentController;
   trigger: TriggerController;
 };
 
 export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
   const httpClient = createHttpClient(config);
+  const agent = createAgentController(httpClient);
 
   const runStore = createStore<StatefulResult<RunResponse>>(initialState<RunResponse>());
   const streamStore = createStore<StatefulResult<StreamResponse>>(initialState<StreamResponse>());
@@ -323,12 +328,8 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
           let response = await runConversationV2(httpClient, request, activeConversationId ?? undefined);
           let conversationId = response.data.conversation_id;
 
-          while (response.data.status === "requires_client_action") {
+          while (response.data.run_status === "waiting_for_client_action") {
             const calls = response.data.client_tool_calls ?? [];
-            const runId = response.data.run_id;
-            if (!runId) {
-              throw createValidationError("Client tool response is missing `run_id`.");
-            }
 
             conversationStore.setState((previous) => ({
               ...previous,
@@ -370,7 +371,6 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
               httpClient,
               request,
               conversationId,
-              runId,
               toolResults
             );
             conversationId = response.data.conversation_id;
@@ -632,6 +632,7 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
     run,
     stream,
     conversation,
+    agent,
     trigger
   };
 }

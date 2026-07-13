@@ -13,6 +13,7 @@ Official TypeScript/JavaScript SDK for Amarsia APIs.
 - Use `client.run(...)` for one-shot responses
 - Use `client.stream(...)` for streaming responses
 - Use `client.conversation` for stateful conversation workflows with `conversation.id` and `conversation.data`
+- Use `client.agent` for durable, reconnectable workflows with client tools
 
 ## What Is `@amarsia/sdk`?
 
@@ -21,6 +22,7 @@ Official TypeScript/JavaScript SDK for Amarsia APIs.
 - `run` for one-shot runner API requests
 - `stream` for streaming AI output
 - `conversation` for stateful multi-turn chat with conversation history
+- `agent` for durable turns, hidden polling, and explicit or automatic client-tool resolution
 
 It is designed for Node.js, browser apps, Next.js apps, and agentic workflows where you need simple API access with built-in state.
 
@@ -95,6 +97,7 @@ await client.run({ content: [...] });
 await client.stream({ content: [...] });
 client.conversation.start();
 await client.conversation.stream({ content: [...] });
+await client.agent.start({ content: [...] });
 ```
 
 All controllers expose state:
@@ -255,6 +258,46 @@ const byId = await conversation.loadMessages({
 - `conversation.conversationsPageInfo`: paging info for conversations
 - `conversation.error`: typed SDK error object
 - `conversation.raw`: latest raw response envelope/payload
+
+## Durable Agent API
+
+`client.agent` starts and resumes turns through the v2 conversation endpoint, then polls the ordered v2 agent-history timeline for durable state. `history` contains messages, tools, actions, and client-tool activity in chronological order; `messages` remains a derived message-only view.
+
+```ts
+const lookupCustomer = Object.assign(
+  async ({ customerId }: Record<string, unknown>) => ({ customerId, active: true }),
+  {
+    inputSchema: {
+      type: "object",
+      properties: { customerId: { type: "string" } },
+      required: ["customerId"]
+    }
+  }
+);
+
+await client.agent.start({
+  triggerId: "trigger-id",
+  clientTools: { lookupCustomer }
+});
+
+// One-time status and message snapshot; does not poll:
+const snapshot = await client.agent.get("conversation-id", {
+  pageSize: 25
+});
+
+// Open an interactive session and keep it synchronized:
+await client.agent.open("conversation-id", { clientTools: { lookupCustomer } });
+
+// Tools without handlers remain available for explicit UI resolution:
+await client.agent.resolveTool(client.agent.pendingToolCalls[0].callId, { approved: true });
+
+// Fetch the next older history page when requested by your UI:
+if (client.agent.historyPageInfo?.hasMore) {
+  await client.agent.loadMoreHistory();
+}
+```
+
+`get()` is a one-time read. `open()` starts SDK-managed refresh for an interactive UI, and `subscribe()` notifies your code when that state changes. Completed conversations are read-only. Call `close()` or `abort()` to stop polling. The controller does not use SSE or local storage; it manages opaque history cursors internally.
 
 ## React / Next.js
 

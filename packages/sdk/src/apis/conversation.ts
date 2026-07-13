@@ -4,6 +4,7 @@ import { readTextStream } from "../core/stream";
 import { createConfigError } from "../errors";
 import type { HttpClient } from "../core/http";
 import type {
+  AgentHistoryResponse,
   ConversationData,
   ConversationListResponse,
   ConversationMessagesResponse,
@@ -139,7 +140,7 @@ export async function runConversationV2(
     variables?: ConversationSendRequest["variables"];
     meta?: ConversationSendRequest["meta"];
     history_limit?: number;
-    client_capabilities?: string[];
+    client_capabilities?: ConversationSendRequest["clientCapabilities"];
     trigger_id?: string;
   };
   setIfDefined(body, "conversation_id", conversationId);
@@ -156,7 +157,6 @@ export async function resumeConversationV2(
   client: HttpClient,
   input: ConversationSendRequest,
   conversationId: string,
-  runId: string,
   toolResults: ClientToolResult[]
 ): Promise<{ data: ConversationData; raw: unknown }> {
   const deploymentId = resolveDeploymentId(client.deploymentId, input.deploymentId);
@@ -165,7 +165,6 @@ export async function resumeConversationV2(
     path: `/v2/runner/${deploymentId}/conversation`,
     body: {
       conversation_id: conversationId,
-      run_id: runId,
       tool_results: toolResults
     }
   };
@@ -174,15 +173,37 @@ export async function resumeConversationV2(
 
   const body = requestOptions.body as {
     conversation_id: string;
-    run_id: string;
     tool_results: ClientToolResult[];
     history_limit?: number;
-    client_capabilities?: string[];
+    client_capabilities?: ConversationSendRequest["clientCapabilities"];
   };
   setIfDefined(body, "history_limit", input.historyLimit);
   setIfDefined(body, "client_capabilities", input.clientCapabilities);
 
   return requestJson<ConversationData>(client, requestOptions);
+}
+
+export async function getAgentHistory(
+  client: HttpClient,
+  input: {
+    conversationId: string;
+    deploymentId?: string;
+    cursor?: string;
+    limit?: number;
+    signal?: AbortSignal;
+  }
+): Promise<{ data: AgentHistoryResponse; raw: unknown }> {
+  const deploymentId = resolveDeploymentId(client.deploymentId, input.deploymentId);
+  const requestOptions: Parameters<typeof requestJson<AgentHistoryResponse>>[1] = {
+    method: "GET",
+    path: `/v2/runner/${deploymentId}/conversation/${input.conversationId}/history`,
+    query: {
+      cursor: input.cursor,
+      limit: input.limit
+    }
+  };
+  setIfDefined(requestOptions, "signal", input.signal);
+  return requestJson<AgentHistoryResponse>(client, requestOptions);
 }
 
 export async function getConversationMessages(
@@ -194,14 +215,16 @@ export async function getConversationMessages(
     throw createConfigError("conversationId is required to fetch messages.");
   }
 
-  return requestJson<ConversationMessagesResponse>(client, {
+  const requestOptions: Parameters<typeof requestJson<ConversationMessagesResponse>>[1] = {
     method: "GET",
     path: `/v1/runner/conversation/${conversationId}/messages`,
     query: {
       page: input.page ?? 1,
       page_size: input.pageSize ?? 20
     }
-  });
+  };
+  setIfDefined(requestOptions, "signal", input.signal);
+  return requestJson<ConversationMessagesResponse>(client, requestOptions);
 }
 
 export async function listConversations(
