@@ -556,7 +556,10 @@ export function createAmarsiaClient(config: InitConfig): AmarsiaClient {
         let nextMessages = response.data.items;
         if (input?.append) {
           const merged = [...conversationStore.getState().messages, ...response.data.items];
-          const dedupedById = new Map<string, (typeof merged)[number]>();
+          const dedupedById = new Map<
+            string | number,
+            (typeof merged)[number]
+          >();
           for (const message of merged) {
             dedupedById.set(message.id, message);
           }
