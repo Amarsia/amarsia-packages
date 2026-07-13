@@ -1,5 +1,16 @@
 # @amarsia/react
 
+## 1.5.0
+
+### Minor Changes
+
+- 4625cb8: feat: amarsia agent API
+
+### Patch Changes
+
+- Updated dependencies [4625cb8]
+  - @amarsia/sdk@1.5.0
+
 ## 1.4.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @amarsia/sdk
 
+## 1.5.0
+
+### Minor Changes
+
+- 4625cb8: feat: amarsia agent API
+
 ## 1.4.0
 
 ### Minor Changes
