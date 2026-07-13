@@ -91,9 +91,16 @@ export function createAgentController(client: HttpClient): AgentController {
   const schedulePoll = (): void => {
     stopPolling();
     const state = store.getState();
+    const shouldPoll =
+      state.status === "loading" ||
+      state.status === "running" ||
+      state.runStatus === "running";
     if (
       state.status === "closed" ||
       state.conversationStatus === "completed" ||
+      state.pendingToolCalls.length > 0 ||
+      state.runStatus === "waiting_for_client_action" ||
+      !shouldPoll ||
       lifecycleController?.signal.aborted
     ) {
       return;
